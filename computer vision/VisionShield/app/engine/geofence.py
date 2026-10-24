@@ -198,7 +198,7 @@ class GeofenceAnalyzer:
         events = []
         self.confirmed_zones.clear()
         for zone_id, zone in self.zones.items():
-            if zone.purpose != "restricted":
+            if zone.purpose not in {"restricted", "allowed_area"}:
                 continue
             current_inside = set()
             for track in tracks:
@@ -206,7 +206,10 @@ class GeofenceAnalyzer:
                     continue
                 cx = (track.box[0] + track.box[2]) / 2
                 foot_y = track.box[3]
-                if not zone.contains_point(cx, foot_y, frame_w, frame_h):
+                inside = zone.contains_point(cx, foot_y, frame_w, frame_h)
+                # An allowed-area polygon is the safe inner radius. Outside is red.
+                breach = inside if zone.purpose == "restricted" else not inside
+                if not breach:
                     continue
                 current_inside.add(track.track_id)
                 state = self.zone_dwell[zone_id].get(track.track_id)
@@ -231,7 +234,11 @@ class GeofenceAnalyzer:
                     track.threat_score = score
                     track.threat_level = level
                     track.active_alert = (
-                        "RESTRICTED ZONE - CHECK IMMEDIATELY: "
+                        (
+                            "OUTSIDE ALLOWED AREA - CHECK IMMEDIATELY: "
+                            if zone.purpose == "allowed_area"
+                            else "RESTRICTED ZONE - CHECK IMMEDIATELY: "
+                        )
                         if confirmed
                         else "ZONE ENTRY PENDING: "
                     ) + zone.name
@@ -250,8 +257,12 @@ class GeofenceAnalyzer:
                         "object_label": track.label,
                         "threat_score": score,
                         "zone_id": zone_id,
-                        "display_label": "RESTRICTED ZONE - CHECK IMMEDIATELY",
-                        "explanation": f"Detected {track.label} #{track.track_id} inside '{zone.name}'. Check immediately. This is a configured zone warning; verify the scene.",
+                        "display_label": (
+                            "OUTSIDE ALLOWED AREA - CHECK IMMEDIATELY"
+                            if zone.purpose == "allowed_area"
+                            else "RESTRICTED ZONE - CHECK IMMEDIATELY"
+                        ),
+                        "explanation": f"Detected {track.label} #{track.track_id} {'outside the allowed area' if zone.purpose == 'allowed_area' else 'inside'} '{zone.name}'. Check immediately. This is a configured zone warning; verify the scene.",
                         "metadata": {
                             "zone_name": zone.name,
                             "dwell_seconds": round(dwell, 1),

@@ -56,6 +56,20 @@ class ZoneTests(unittest.TestCase):
         self.assertFalse(engine.confirmed_zones)
         self.assertEqual(engine.process_geofence([person], 100, 100, 102.2), [])
 
+    def test_allowed_area_alerts_only_outside_its_polygon(self):
+        engine = GeofenceAnalyzer()
+        engine.add_zone(
+            "safe", "Safe inner area", [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            purpose="allowed_area",
+        )
+        inside = track(1, "person", [45, 30, 55, 60])
+        outside = track(2, "person", [2, 30, 12, 60])
+        self.assertEqual(engine.process_geofence([inside], 100, 100, 100), [])
+        self.assertEqual(engine.process_geofence([outside], 100, 100, 101), [])
+        self.assertEqual(engine.process_geofence([outside], 100, 100, 102), [])
+        events = engine.process_geofence([outside], 100, 100, 102.6)
+        self.assertEqual(events[0]["display_label"], "OUTSIDE ALLOWED AREA - CHECK IMMEDIATELY")
+
     def test_zones_persist_separately_per_camera(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "zones.json"

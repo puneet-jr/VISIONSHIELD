@@ -32,7 +32,13 @@ class AppConfig:
     HEAD_CONFIDENCE: float = 0.35
     HEAD_MAP_INTERVAL_SECONDS: float = 0.6
     ENABLE_PERSON_REFINEMENT: bool = True
+    PERSON_REFINE_MODEL: str = "yolo11s.pt"
+    PERSON_REFINE_CONFIDENCE: float = 0.25
+    # Keep the CPU refinement worker bounded so it cannot delay the live view.
+    PERSON_FULL_INPUT_SIZE: int = 960
     PERSON_TILE_INPUT_SIZE: int = 512
+    PERSON_REFINE_INTERVAL_SECONDS: float = 1.5
+    PERSON_CACHE_SECONDS: float = 6.0
     AUTO_ORIENT_PHONE: bool = True
     CROWD_WARNING_SECONDS: float = 2.0
     CROWD_GROWTH_WINDOW_SECONDS: float = 10.0

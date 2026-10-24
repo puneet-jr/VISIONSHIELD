@@ -39,6 +39,7 @@ from app.core.streams import streams
 
 from app.ingestion.video_stream import video_manager
 from app.engine.pipeline import pipeline
+from app.engine.person_refinement import person_refiner, merge_people
 from app.engine.incident_agent import incident_dispatcher
 from app.core.event_hub import event_hub
 from app.db.database import db
@@ -121,6 +122,51 @@ async def upload_frame(request: Request, file: UploadFile = File(...)):
         await asyncio.to_thread(target.push_phone_frame, frame, target.generation)
         return {"status": "ok"}
     raise HTTPException(422, "Invalid image")
+
+
+@router.post("/api/analyze-image")
+async def analyze_crowd_image(file: UploadFile = File(...)):
+    """Analyze one still image with the same person proposal path as crowd mode.
+
+    This is intentionally separate from the live stream: it does not alter the
+    selected camera, zones, tracker IDs, or event history.
+    """
+    contents = await file.read(10_000_001)
+    if len(contents) > 10_000_000:
+        raise HTTPException(413, "Image must be 10 MB or smaller")
+    frame = await asyncio.to_thread(cv2.imdecode, np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    if frame is None:
+        raise HTTPException(422, "Choose a valid JPEG, PNG, or WebP image")
+
+    def analyze():
+        # The live worker holds this same lock, so a still-image pass cannot race
+        # the shared ONNX session or make a live count use somebody else's image.
+        with pipeline.lock:
+            base = pipeline.detector.detect(frame)
+            detections = base
+            method = "full_frame"
+            if config.ENABLE_PERSON_REFINEMENT:
+                try:
+                    if person_refiner.model is None:
+                        person_refiner._load()
+                    detections = merge_people(base + person_refiner._proposals(frame), .45)
+                    method = "full_frame_plus_enlarged_tiles"
+                except Exception as exc:
+                    logger.warning("Still crowd refinement unavailable: %s", exc)
+        people = [d for d in detections if d.get("label") == config.PERSON_CLASS]
+        h, w = frame.shape[:2]
+        return {
+            "width": w,
+            "height": h,
+            "visible_people": len(people),
+            "method": method,
+            "points": [
+                [round((d["box"][0] + d["box"][2]) / 2, 1), round(d["box"][1] + .12 * (d["box"][3] - d["box"][1]), 1)]
+                for d in people
+            ],
+        }
+
+    return await asyncio.to_thread(analyze)
 
 
 # --- REST APIs ---
@@ -227,7 +273,7 @@ class ZonePayload(BaseModel):
     severity: str = Field(default="HIGH", pattern="^(HIGH|MEDIUM|LOW)$")
     color: str = Field(default="#7dd3fc", pattern="^#[0-9a-fA-F]{6}$")
     purpose: Literal[
-        "restricted", "object_monitor", "crowd_monitor", "river_edge", "pedestrian_only"
+        "restricted", "allowed_area", "object_monitor", "crowd_monitor", "river_edge", "pedestrian_only"
     ] = "restricted"
     dwell_seconds: float = Field(default=1.5, ge=0.5, le=300)
     max_capacity: int | None = Field(default=None, ge=1, le=100000)

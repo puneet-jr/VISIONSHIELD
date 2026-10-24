@@ -36,13 +36,16 @@ logger = logging.getLogger("VisionShield.Pipeline")
 
 
 class SurveillancePipeline:
-    def __init__(self, persist=True, video=None, detector=None, zone_source=None, enable_pose=None):
+    def __init__(self, persist=True, video=None, detector=None, zone_source=None, enable_pose=None, enable_refinement=None):
         self.video = video or video_manager
         self.zone_source = zone_source
         self.crowd = CrowdDynamicsAnalyzer()
         self.head_map = None
         self.last_head_at = 0
         self.persist = persist
+        # Only the primary crowd view uses enlarged tiles. Extra cameras retain
+        # the low-latency full-frame detector instead of competing for the CPU.
+        self.enable_refinement = persist if enable_refinement is None else enable_refinement
         self.identities = IdentityManager()
         self.assessment = AssessmentEngine()
         self.stage_times = {}
@@ -138,9 +141,9 @@ class SurveillancePipeline:
             if self.video.set_phone_rotation(angle,generation):
                 frame=oriented;detections=proposals;h,w=frame.shape[:2]
         refinement_ms=0
-        if self.persist and config.ENABLE_PERSON_REFINEMENT and self.video.camera_online:
+        if self.enable_refinement and config.ENABLE_PERSON_REFINEMENT and self.video.camera_online:
             refine_started=time.perf_counter()
-            detections=person_refiner.refine(frame,detections)
+            detections=person_refiner.refine(frame,detections,timestamp,id(self))
             refinement_ms=round((time.perf_counter()-refine_started)*1000,1)
         self.inference_ms = (time.perf_counter() - started) * 1000
 
@@ -263,7 +266,7 @@ class SurveillancePipeline:
                 "source_type": self.video.source_type,
                 "stage_times": dict(self.stage_times),
                 "counts": counts,
-                "person_detection":{'method':'full_frame_plus_enlarged_tiles' if self.persist and config.ENABLE_PERSON_REFINEMENT and person_refiner.error is None else 'full_frame','refinement_ms':refinement_ms,'error':person_refiner.error,'phone_rotation':self.video.phone_rotation},
+                "person_detection":{'method':'full_frame_plus_enlarged_tiles' if self.enable_refinement and config.ENABLE_PERSON_REFINEMENT and person_refiner.error is None else 'full_frame','refinement_ms':refinement_ms,'error':person_refiner.error,'phone_rotation':self.video.phone_rotation},
                 "head_map": self.head_map if timestamp - self.last_head_at < 1.5 else None,
                 "crowd": {
                     "zones": self.crowd.zone_metrics,

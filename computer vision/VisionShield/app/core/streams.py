@@ -73,6 +73,7 @@ class StreamRegistry:
                         detector=pipeline.detector,
                         zone_source="phone:" + device,
                         enable_pose=False,
+                        enable_refinement=False,
                     )
                     engine.geofence = GeofenceAnalyzer(
                         str(Path(config.ZONES_PATH).with_name("zones-" + device + ".json"))

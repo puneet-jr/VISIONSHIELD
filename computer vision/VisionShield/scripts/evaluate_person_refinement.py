@@ -16,7 +16,7 @@ def main():
         for index in np.linspace(0,len(annotations)-1,24,dtype=int):
             frame=cv2.imdecode(np.frombuffer(data.read(f'mall_dataset/frames/seq_{index+1:06d}.jpg'),np.uint8),cv2.IMREAD_COLOR)
             expected=len(np.asarray(annotations[index]['loc']).reshape(-1,2))
-            base=detector.detect(frame);started=time.perf_counter();refined=refiner.refine(frame,base)
+            base=detector.detect(frame);started=time.perf_counter();refined=refiner.refine(frame,base,key=int(index))
             samples.append({'frame':int(index+1),'annotated_heads':expected,'baseline':sum(d['label']=='person' for d in base),
                 'refined':sum(d['label']=='person' for d in refined),'refinement_ms':round((time.perf_counter()-started)*1000,1)})
     metrics=lambda key:{'mae':float(np.mean([abs(s[key]-s['annotated_heads']) for s in samples])),

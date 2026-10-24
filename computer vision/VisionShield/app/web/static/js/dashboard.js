@@ -400,10 +400,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const crowdMode=document.getElementById('overlayMode').value==='crowd';
         if (telemetry) {
             for (const zone of telemetry.zones || []) {
-                c.beginPath(); zone.points.forEach((p,i) => i ? c.lineTo(p[0]*w,p[1]*h) : c.moveTo(p[0]*w,p[1]*h)); c.closePath();
+                const zonePath=()=>{c.beginPath();zone.points.forEach((p,i)=>i?c.lineTo(p[0]*w,p[1]*h):c.moveTo(p[0]*w,p[1]*h));c.closePath();};
+                zonePath();
                 const crowd=(telemetry.crowd?.zones||[]).find(z=>z.zone_id===zone.id);
                 const high = !telemetry.stale && ((telemetry.confirmed_zones || []).includes(zone.id)||(crowd?.warning_confirmed&&crowd.state==='critical'));
-                c.strokeStyle = high ? '#ff4545' : zone.purpose==='restricted'?'#fbbf24':'#80e4bd'; c.fillStyle = high ? '#ef444440' : zone.purpose==='restricted'?'#fbbf2410':'#80e4bd18'; c.lineWidth = high?3:2;c.setLineDash(high?[8,4]:[]); c.fill(); c.stroke();c.setLineDash([]);
+                if(zone.purpose==='allowed_area'){
+                    c.save();c.fillStyle='#ef444426';c.fillRect(0,0,w,h);c.globalCompositeOperation='destination-out';c.fill();c.restore();
+                    zonePath();c.strokeStyle=high?'#ff4545':'#80e4bd';c.fillStyle='#80e4bd20';c.lineWidth=high?3:2;c.fill();c.stroke();
+                }else{
+                    c.strokeStyle = high ? '#ff4545' : zone.purpose==='restricted'?'#fbbf24':'#80e4bd'; c.fillStyle = high ? '#ef444440' : zone.purpose==='restricted'?'#fbbf2410':'#80e4bd18'; c.lineWidth = high?3:2;c.setLineDash(high?[8,4]:[]); c.fill(); c.stroke();c.setLineDash([]);
+                }
                 if(zone.points.length) { c.font='11px system-ui'; c.fillStyle='#b5dce9'; c.fillText(zone.name,zone.points[0][0]*w+5,zone.points[0][1]*h+15); }
             }
             const age = (telemetry.age_ms || 0) + performance.now() - receivedAt;
@@ -411,8 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(crowdMode){
                     const map=telemetry.person_map;
                     const points=map?map.points:(telemetry.tracks||[]).filter(t=>t.label==='person').map(t=>[(t.box[0]+t.box[2])/2,t.box[1]+(t.box[3]-t.box[1])*.12,t.confidence]);
-                    document.getElementById('crowdMapStatus').textContent='Detected people: '+points.length+' (position estimates)';
-                    for(const point of points){const nx=point[0]/telemetry.width,ny=point[1]/telemetry.height;const red=(telemetry.crowd?.zones||[]).some(z=>z.warning_confirmed&&z.state==='critical'&&(telemetry.zones||[]).some(p=>p.id===z.zone_id&&pointInsidePolygon(nx,ny,p.points)));c.beginPath();c.arc(nx*w,ny*h,Math.max(2,Math.min(3.5,w/220)),0,Math.PI*2);c.fillStyle=red?'#ff4545':'#39f24b';c.fill();}
+                    document.getElementById('crowdMapStatus').textContent='Visible people: '+points.length+' (position estimates)';
+                    for(const point of points){const nx=point[0]/telemetry.width,ny=point[1]/telemetry.height;const track=(telemetry.tracks||[]).find(t=>t.track_id===point[2]);const red=track?.threat_level==='HIGH'||(telemetry.crowd?.zones||[]).some(z=>z.warning_confirmed&&z.state==='critical'&&(telemetry.zones||[]).some(p=>p.id===z.zone_id&&pointInsidePolygon(nx,ny,p.points)))||(telemetry.zones||[]).some(z=>z.purpose==='allowed_area'&&!pointInsidePolygon(nx,ny,z.points));c.beginPath();c.arc(nx*w,ny*h,Math.max(2,Math.min(3.5,w/220)),0,Math.PI*2);c.fillStyle=red?'#ff4545':'#39f24b';c.fill();}
                 }
                 for (const t of telemetry.tracks || []) {
                     if(crowdMode)continue;
@@ -441,6 +447,21 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(drawTracks, 1000/24);
     }
     document.getElementById('overlayMode').onchange=event=>{document.body.dataset.overlayMode=event.target.value;};
+    document.getElementById('stillImageForm').onsubmit=async event=>{
+        event.preventDefault();
+        const file=document.getElementById('stillImageFile').files[0],result=document.getElementById('stillImageResult');
+        if(!file)return;
+        result.textContent='Analysing image…';
+        try{
+            const data=new FormData();data.append('file',file);
+            const response=await fetch('/api/analyze-image',{method:'POST',body:data});
+            if(!response.ok)throw Error(await response.text());
+            const analysis=await response.json(),image=document.getElementById('stillImage'),preview=document.getElementById('stillImagePreview'),canvas=document.getElementById('stillImageDots');
+            image.onload=()=>{const bounds=image.getBoundingClientRect();canvas.width=Math.round(bounds.width);canvas.height=Math.round(bounds.height);const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);for(const point of analysis.points){c.beginPath();c.arc(point[0]/analysis.width*canvas.width,point[1]/analysis.height*canvas.height,Math.max(2,Math.min(4,canvas.width/220)),0,Math.PI*2);c.fillStyle='#39f24b';c.fill();}};
+            image.src=URL.createObjectURL(file);preview.hidden=false;
+            result.textContent=`Visible people: ${analysis.visible_people} · ${analysis.method.replaceAll('_',' ')}`;
+        }catch(error){result.textContent='Image analysis failed: '+error.message;}
+    };
     pollTracks(); drawTracks();
 
     function pointInsidePolygon(x,y,points){let inside=false;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[i],b=points[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
@@ -520,7 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function updateObservations(){
         const tracks=telemetry?.stale?[]:telemetry?.tracks || [];
-        const people=telemetry?.stale?0:telemetry?.person_map?.count??tracks.filter(t=>t.label==='person').length;
+        const people=telemetry?.stale ? 0 : (telemetry?.person_map?.count ?? tracks.filter(t=>t.label==='person').length);
+        if(telemetry?.stale)document.getElementById('crowdMapStatus').textContent='Awaiting a fresh processed frame';
         document.getElementById('visiblePeople').textContent=people;
         document.getElementById('visibleVehicles').textContent=tracks.filter(t=>vehicleLabels.has(t.label)).length;
         document.getElementById('activeWarnings').textContent=tracks.filter(t=>t.active_alert).length;
