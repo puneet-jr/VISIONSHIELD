@@ -1,0 +1,444 @@
+{
+  "model": "yolo11s.pt",
+  "sha256": "85a76fe86dd8afe384648546b56a7a78580c7cb7b404fc595f97969322d502d5",
+  "input_size": 640,
+  "split": "COCO val2017",
+  "sample_design": "first 10 knife-positive and first 10 knife-negative image IDs, not representative; no custom training",
+  "iou_threshold": 0.5,
+  "threshold_results": {
+    "0.4": {
+      "tp": 7,
+      "fp": 3,
+      "fn": 9,
+      "precision": 0.7,
+      "recall": 0.438
+    },
+    "0.55": {
+      "tp": 6,
+      "fp": 3,
+      "fn": 10,
+      "precision": 0.667,
+      "recall": 0.375
+    }
+  },
+  "rows": [
+    {
+      "image": "000000002157.jpg",
+      "ground_truth_knives": 3,
+      "predictions": [
+        {
+          "confidence": 0.83,
+          "box": [
+            219.75979614257812,
+            310.115966796875,
+            408.8627624511719,
+            421.9141845703125
+          ]
+        }
+      ],
+      "elapsed_ms": 13400.2,
+      "0.4": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 2
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 2
+      }
+    },
+    {
+      "image": "000000002431.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [
+        {
+          "confidence": 0.743,
+          "box": [
+            179.7437744140625,
+            116.72440338134766,
+            245.6607666015625,
+            192.16763305664062
+          ]
+        }
+      ],
+      "elapsed_ms": 275.0,
+      "0.4": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000002592.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [],
+      "elapsed_ms": 272.7,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1
+      }
+    },
+    {
+      "image": "000000007818.jpg",
+      "ground_truth_knives": 3,
+      "predictions": [],
+      "elapsed_ms": 202.5,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3
+      }
+    },
+    {
+      "image": "000000007991.jpg",
+      "ground_truth_knives": 2,
+      "predictions": [
+        {
+          "confidence": 0.68,
+          "box": [
+            0.9446258544921875,
+            161.01983642578125,
+            147.61563110351562,
+            257.7435302734375
+          ]
+        },
+        {
+          "confidence": 0.617,
+          "box": [
+            0.407135009765625,
+            227.9876708984375,
+            148.53781127929688,
+            265.07806396484375
+          ]
+        }
+      ],
+      "elapsed_ms": 220.7,
+      "0.4": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 1
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 1
+      }
+    },
+    {
+      "image": "000000009914.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [
+        {
+          "confidence": 0.824,
+          "box": [
+            428.2054443359375,
+            301.5928955078125,
+            594.235107421875,
+            480.0
+          ]
+        }
+      ],
+      "elapsed_ms": 427.1,
+      "0.4": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000010583.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [],
+      "elapsed_ms": 438.3,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1
+      }
+    },
+    {
+      "image": "000000012576.jpg",
+      "ground_truth_knives": 2,
+      "predictions": [
+        {
+          "confidence": 0.795,
+          "box": [
+            380.67572021484375,
+            405.011474609375,
+            479.62042236328125,
+            572.307861328125
+          ]
+        },
+        {
+          "confidence": 0.49,
+          "box": [
+            409.22967529296875,
+            404.65313720703125,
+            479.6221923828125,
+            491.4029541015625
+          ]
+        }
+      ],
+      "elapsed_ms": 290.2,
+      "0.4": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 1
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 2
+      }
+    },
+    {
+      "image": "000000015079.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [
+        {
+          "confidence": 0.848,
+          "box": [
+            469.5434875488281,
+            88.11639404296875,
+            625.142333984375,
+            374.04052734375
+          ]
+        }
+      ],
+      "elapsed_ms": 294.1,
+      "0.4": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000017714.jpg",
+      "ground_truth_knives": 1,
+      "predictions": [
+        {
+          "confidence": 0.553,
+          "box": [
+            297.73858642578125,
+            373.07073974609375,
+            485.486083984375,
+            429.70355224609375
+          ]
+        },
+        {
+          "confidence": 0.551,
+          "box": [
+            293.7076416015625,
+            405.5557861328125,
+            484.8458251953125,
+            449.3245849609375
+          ]
+        }
+      ],
+      "elapsed_ms": 318.9,
+      "0.4": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000139.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 271.7,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000285.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 573.7,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000632.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 356.5,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000724.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 274.7,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000776.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 328.6,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000785.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 256.9,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000802.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 274.4,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000872.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 340.0,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000000885.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 269.2,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    {
+      "image": "000000001000.jpg",
+      "ground_truth_knives": 0,
+      "predictions": [],
+      "elapsed_ms": 279.1,
+      "0.4": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      },
+      "0.55": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    }
+  ],
+  "limitations": "20 selected images do not establish deployment accuracy, hand contact, dangerous intent, or video alert precision. Temporal/person gates are tested separately."
+}

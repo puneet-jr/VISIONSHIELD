@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionShield AI | Tactical SOC Command Center</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">🛡️</div>
+            <div class="brand-text">
+                <h1>VISIONSHIELD <span>OPERATIONS</span></h1>
+                <p>Live security intelligence · Human-reviewed incident support</p>
+            </div>
+        </div>
+
+        <div class="topbar-actions">
+            <div class="live-status">
+                <span class="pulsing-dot"></span>
+                <span>CONNECTING</span>
+            </div>
+            <button class="btn btn-secondary" id="btnConnectPhone">
+                📱 CONNECT PHONE
+            </button>
+            <button class="btn btn-outline" id="btnToggleSiren">
+                🔊 SIREN: <span id="sirenStatus">OFF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Command Center Grid -->
+    <div class="overview"><div><span class="eyebrow">WORKSPACE / OVERVIEW</span><h2>Command center<span class="accent">.</span></h2><p>One clear view of your space.</p></div><div class="overview-meta"><span id="modelScope">COCO pretrained ? knife candidates require review</span><span id="cameraState">Awaiting camera</span><span id="connectionState">Connecting to event hub</span></div></div><main class="dashboard-grid">
+
+        <!-- Left Column: Video Feed & Zone Controls -->
+        <section class="viewport-card">
+            <div class="card-header">
+                <div class="header-title">
+                    <span class="hud-tag">CAM-01</span>
+                    <h3>Live observation</h3>
+                </div>
+                <div class="source-selector">
+                    <label>INPUT SOURCE:</label>
+                    <select id="sourceSelect">
+                        <option value="0">Default Webcam (0)</option>
+                        <option value="1">Secondary Webcam (1)</option>
+                        <option value="phone_upload">Mobile Phone Stream</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Video Player with Overlay Canvas -->
+            <div class="video-container" id="videoContainer">
+                <img src="/video_feed" id="videoElement" alt="Live Surveillance Stream" />
+                <canvas id="trackingCanvas" aria-hidden="true"></canvas><canvas id="zoneCanvas"></canvas><div id="videoEmpty" class="video-empty"><span class="camera-symbol">&#9678;</span><strong>Your next camera is one scan away.</strong><span>Choose Connect phone above to pair a camera.</span></div>
+
+                <!-- In-Video Tactical HUD Elements -->
+                <div class="video-hud-overlay">
+                    <div class="hud-box">
+                        <div class="hud-label">ENGINE</div>
+                        <div class="hud-val" id="hudEngine">YOLO11 · centroid tracking</div>
+                    </div>
+                    <div class="hud-box">
+                        <div class="hud-label">VIDEO / AI FPS</div>
+                        <div class="hud-val" id="hudFps">--</div>
+                    </div>
+                    <div class="hud-box">
+                        <div class="hud-label">ACTIVE TRACKS</div>
+                        <div class="hud-val" id="hudTracks">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zone Drawing Tool Bar -->
+            <div class="zone-toolbar"><input id="zoneName" aria-label="Zone name" maxlength="100" placeholder="Zone name, e.g. Staff doorway"><button class="btn btn-outline" id="btnRemoveZones">Remove saved zones</button>
+                <button class="btn btn-primary" id="btnDrawZone">
+                    ✏️ DRAW RESTRICTED ZONE
+                </button>
+                <button class="btn btn-danger" id="btnClearZones" style="display:none;">
+                    CLEAR DRAWING
+                </button>
+                <button class="btn btn-success" id="btnSaveZone" style="display:none;">
+                    💾 SAVE ZONE
+                </button>
+                <div class="zone-hint" id="zoneHint">
+                    Draw 3-20 points around a restricted floor area. Person foot position + 1.5s dwell confirms entry.
+                </div>
+            </div>
+
+            <!-- Quick Telemetry Bar -->
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <span class="m-label">OBJECT DETECTIONS</span>
+                    <span class="m-val" id="statLuggage">Waiting for camera</span>
+                </div>
+                <div class="metric-card">
+                    <span class="m-label">INFERENCE TIME</span>
+                    <span class="m-val" id="inferenceTime">Waiting for camera</span>
+                </div>
+                <div class="metric-card">
+                    <span class="m-label">DYNAMIC GEOFENCING</span>
+                    <span class="m-val" id="statZones">0 zones</span>
+                </div>
+                <div class="metric-card">
+                    <span class="m-label">REPORT MODE</span>
+                    <span class="m-val" id="reportMode">Offline template</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: AI Incident Dossier & Threat Event Log -->
+        <aside class="sidebar-column">
+
+            <!-- Multimodal AI Incident Briefing Card -->
+            <section class="intel-card" id="incidentCard">
+                <div class="card-header border-danger">
+                    <div class="header-title">
+                        <span class="hud-badge danger">LAST INCIDENT BRIEF</span>
+                        <h4 id="incidentTitle">Ready when it matters</h4>
+                    </div>
+                    <span class="incident-timer" id="incidentTime">--:--:--</span>
+                </div>
+
+                <div class="incident-body">
+                    <div class="snapshot-wrapper" id="snapshotWrapper">
+                        <div class="snapshot-placeholder">
+                            <span>AWAITING HIGH-SEVERITY ANOMALY</span>
+                        </div>
+                        <img id="incidentSnapshot" src="" style="display:none;" />
+                    </div>
+
+                    <div class="intel-details">
+                        <div class="intel-row">
+                            <span class="i-label">EXECUTIVE SUMMARY:</span>
+                            <p class="i-val" id="incidentSummary">Incident briefs appear here when an alert is detected. Always verify the live scene before taking action.</p>
+                        </div>
+                        <div class="intel-row">
+                            <span class="i-label">SUBJECT / OBJECT OBSERVED:</span>
+                            <p class="i-val" id="incidentSubject">No observation yet.</p>
+                        </div>
+                        <div class="intel-row">
+                            <span class="i-label">RECOMMENDED PROTOCOL:</span>
+                            <p class="i-val action-text" id="incidentAction">Connect a camera to begin monitoring.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Real-Time Event Feed -->
+            <section class="feed-card">
+                <div class="card-header">
+                    <h4>Alert history</h4>
+                    <span class="log-count" id="logCount">0 Events</span>
+                </div>
+                <div class="feed-list" id="eventsList">
+                    <!-- Events dynamically injected via WebSocket -->
+                    <div class="empty-state">System monitoring. Waiting for telemetry...</div>
+                </div>
+            </section>
+
+        </aside>
+
+    </main>
+
+    <!-- Mobile Connect Modal -->
+    <div class="modal-backdrop" id="qrModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>📱 CONNECT MOBILE PHONE CAMERA</h3>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Scan this QR code with your iPhone or Android camera to open the instant edge streamer (Zero App Installation Required):</p>
+                <div class="qr-container">
+                    <img id="phoneQr" src="/api/qr" alt="Private camera pairing QR code" />
+                </div>
+                <button class="btn btn-primary" id="copyPhoneLink">Copy private pairing link</button><div class="url-fallback">
+                    Direct URL: <a id="phoneLink" href="/phone" target="_blank" rel="noopener">Loading pairing link...</a>
+                </div>
+                <p class="modal-tip"><span id="connectionHint">Checking secure connection...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div><script src="/static/js/dashboard.js"></script>
+</body>
+</html>

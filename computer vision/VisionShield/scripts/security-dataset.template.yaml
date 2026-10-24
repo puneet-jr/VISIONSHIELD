@@ -1,0 +1,13 @@
+# Template only. No images or labels are supplied and no custom training has run.
+# Each image needs YOLO labels: class_id center_x center_y width height (normalized 0..1).
+# Split by recording session/location, not adjacent frames from the same clip.
+path: ../datasets/custom_security
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: person
+  1: backpack
+  2: handbag
+  3: suitcase
+  4: knife

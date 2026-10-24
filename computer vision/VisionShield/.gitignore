@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+tools/*.exe
+.env
+artifacts/browser-profile/
+datasets/

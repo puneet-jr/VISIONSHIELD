@@ -1,0 +1,139 @@
+"""Dynamic Vector Geofencing Engine
+Real-time Ray-Casting Point-in-Polygon (PIP) testing.
+Supports interactive multi-zone polygons defined or modified live from the web dashboard.
+"""
+from typing import List, Dict, Any, Tuple
+import time
+from app.config import config
+from app.engine.tracker import TrackedObject
+
+class GeofenceZone:
+    def __init__(self, zone_id: str, name: str, points: List[List[float]], severity: str = "HIGH", color: str = "#ef4444"):
+        self.zone_id = zone_id
+        self.name = name
+        self.points = points  # Can be normalized 0..1 or pixel coords
+        self.severity = severity
+        self.color = color
+
+    def contains_point(self, px: float, py: float, frame_width: int, frame_height: int) -> bool:
+        """Ray-Casting algorithm to check if (px, py) is inside this polygon."""
+        n = len(self.points)
+        if n < 3:
+            return False
+
+        # Convert normalized points to pixel coordinates if necessary
+        poly_pts = []
+        for p in self.points:
+            x = p[0] * frame_width if p[0] <= 1.0 else p[0]
+            y = p[1] * frame_height if p[1] <= 1.0 else p[1]
+            poly_pts.append((x, y))
+
+        inside = False
+        p1x, p1y = poly_pts[0]
+        for i in range(1, n + 1):
+            p2x, p2y = poly_pts[i % n]
+            if py > min(p1y, p2y):
+                if py <= max(p1y, p2y):
+                    if px <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or px <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+
+        return inside
+
+
+class GeofenceAnalyzer:
+    def __init__(self, storage_path=None):
+        self.zones = {}
+        self.zone_dwell = {}
+        self.confirmed_zones = set()
+        self.storage_path = storage_path
+        self.source = "0"
+        self.saved = {}
+        if storage_path:
+            import json
+            from pathlib import Path
+            try:
+                self.saved = json.loads(Path(storage_path).read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                pass
+            except (ValueError, OSError):
+                import logging
+                logging.getLogger(__name__).warning("Could not load saved zones; starting without restrictions")
+        self.select_source("0")
+
+    def select_source(self, source):
+        self.source = str(source)
+        self.zones.clear()
+        self.zone_dwell.clear()
+        self.confirmed_zones.clear()
+        for z in self.saved.get(self.source, config.DEFAULT_ZONES):
+            self.add_zone(z["id"], z["name"], z["points"], z.get("severity", "HIGH"), z.get("color", "#7dd3fc"))
+
+    def add_zone(self, zone_id, name, points, severity="HIGH", color="#7dd3fc"):
+        self.zones[zone_id] = GeofenceZone(zone_id, name, points, severity, color)
+        self.zone_dwell[zone_id] = {}
+
+    def get_zones_dict(self):
+        return [{"id": z.zone_id, "name": z.name, "points": z.points,
+                 "severity": z.severity, "color": z.color} for z in self.zones.values()]
+
+    def replace_zones(self, zones):
+        self.zones.clear()
+        self.zone_dwell.clear()
+        self.confirmed_zones.clear()
+        for z in zones:
+            self.add_zone(z["id"], z["name"], z["points"], z["severity"], z["color"])
+        self.saved[self.source] = self.get_zones_dict()
+        if self.storage_path:
+            import json
+            from pathlib import Path
+            target = Path(self.storage_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_suffix(".tmp")
+            temporary.write_text(json.dumps(self.saved, indent=2), encoding="utf-8")
+            temporary.replace(target)
+
+    def process_geofence(self, tracks, frame_w, frame_h, timestamp):
+        events = []
+        self.confirmed_zones.clear()
+        for zone_id, zone in self.zones.items():
+            current_inside = set()
+            for track in tracks:
+                if track.label != config.PERSON_CLASS:
+                    continue
+                cx = (track.box[0] + track.box[2]) / 2
+                foot_y = track.box[3]
+                if not zone.contains_point(cx, foot_y, frame_w, frame_h):
+                    continue
+                current_inside.add(track.track_id)
+                state = self.zone_dwell[zone_id].get(track.track_id)
+                if state is None or timestamp - state["last"] > 2:
+                    state = {"entered": timestamp, "last": timestamp, "count": 0, "alerted": False}
+                state["last"] = timestamp
+                state["count"] += 1
+                self.zone_dwell[zone_id][track.track_id] = state
+                dwell = timestamp - state["entered"]
+                confirmed = dwell >= config.ZONE_DWELL_SECONDS and state["count"] >= config.ZONE_MIN_OBSERVATIONS
+                level = zone.severity if confirmed else "MEDIUM"
+                score = 80 if confirmed else 35
+                if score >= track.threat_score:
+                    track.threat_score = score
+                    track.threat_level = level
+                    track.active_alert = ("ZONE ENTRY: " if confirmed else "ZONE ENTRY PENDING: ") + zone.name
+                if not confirmed:
+                    continue
+                self.confirmed_zones.add(zone_id)
+                if state["alerted"]:
+                    continue
+                state["alerted"] = True
+                events.append({"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "alert_type": "PERIMETER_BREACH", "severity": zone.severity,
+                    "track_id": track.track_id, "object_label": "person", "threat_score": score,
+                    "zone_id": zone_id,
+                    "explanation": f"Person #{track.track_id} remained inside operator-defined '{zone.name}' for {dwell:.1f}s. Verify authorization.",
+                    "metadata": {"zone_name": zone.name, "dwell_seconds": round(dwell, 1), "anchor": "bottom_center"}})
+            self.zone_dwell[zone_id] = {tid: state for tid, state in self.zone_dwell[zone_id].items() if tid in current_inside}
+        return events
