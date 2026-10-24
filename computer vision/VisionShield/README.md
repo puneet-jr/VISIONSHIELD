@@ -1,61 +1,61 @@
-Read [DEMO_GUIDE.md](DEMO_GUIDE.md) for the full laptop/mobile rehearsal, zone design, knife limitations and truthful dataset/training explanation.
-
 # VisionShield
 
-A local FastAPI security dashboard with browser-based phone capture, YOLO11s detection, motion and appearance-assisted tracking, owner/bag association, heuristic fall and loitering alerts, polygon geofencing, and background incident briefs.
+A single-process surveillance research prototype: real YOLO object detection, browser phone ingestion, anonymous motion/appearance tracking, operator-defined zones, temporal review rules and protected event evidence. Detections can be wrong and require human review. Red means a confirmed configured rule, not proof of real danger.
 
-## Start on this Windows machine
+Read [DEMO_GUIDE.md](DEMO_GUIDE.md) for rehearsal and [ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) for architecture, root causes, datasets, training, measurements and limitations.
 
-```powershell
-cd "C:\Users\punee\Desktop\MY-PROJECTS\COMPUTER_VISION-V2\computer vision\VisionShield"
+## Install and run on Windows
+
+Python 3.12 is used. From this project directory:
+
+~~~powershell
+.\setup.ps1
 .\.venv\Scripts\python.exe -E run.py --remote
-```
+~~~
 
-Open http://localhost:8000, wait for the secure connection ready message, then choose **Connect phone**. Scan the private QR code, tap **Start streaming**, and allow camera access. The phone may use mobile data or another Wi-Fi network. Both devices need internet, and the laptop/server must remain running.
+Open http://localhost:8000. In **Connect phone**, select **Camera upload only**, scan the private QR, allow camera permission and tap Start streaming. The phone can use cellular or another Wi-Fi network. Both devices need internet and the laptop must stay running. A separate **Operator** link grants dashboard and evidence access.
 
-`start.ps1` starts remote mode. On a fresh checkout, run `setup.ps1` to create Python 3.12's local environment, install requirements, and download the official Cloudflare tunnel client. No mobile app or inbound router port forwarding is needed. Run without `--remote` for laptop-only use. This machine defines a global PYTHONPATH; use `-E` to keep dependencies isolated (run.py also relaunches with isolation).
+For laptop-only webcam use:
 
-Phone camera access requires a secure browser context. A private `http://192.168...` URL normally cannot request camera permission, even on the same Wi-Fi. The outbound Cloudflare tunnel supplies a temporary HTTPS address. It is a development/demo connection, with a new URL on restart and no availability guarantee. For permanent use, deploy behind a stable HTTPS hostname and proper user accounts. References: [browser camera security](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia), [Cloudflare quick tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+~~~powershell
+.\.venv\Scripts\python.exe -E run.py --source 0
+~~~
 
-## Pipeline
+Default inference is official YOLO11s at 640 pixels, with its verified float32 ONNX export when available. Add --fast for YOLO11n at 416 pixels; small-object recall may decrease. Default source phone_upload waits for a real sender. Live mode never substitutes fabricated detections. Ctrl+C stops the server and tunnel.
 
-- `app/ingestion/video_stream.py`: latest-frame capture slot, source generation counters, a separate preview encoding worker and one cached JPEG shared by dashboard viewers.
-- `app/engine/pipeline.py`: processes each frame once; 640 px small-model inference (416 px nano with --fast), visible-track analysis, alert cooldowns, single background report worker.
-- `app/core/event_hub.py`: bounded subscriber queues, worker-to-ASGI-loop publishing, recent-event replay.
-- `app/web/routes.py`: validated REST endpoints, local QR generation, authenticated remote pairing, bounded acknowledged binary camera WebSocket, raw MJPEG preview and age-limited tracking metadata for a browser overlay.
-- `app/engine/`: detector, centroid association, luggage ownership, kinematics, geofencing, incident generation.
-- `app/db/database.py`: SQLite WAL with deterministic transaction/connection cleanup.
-- `app/web/templates` and `static`: responsive dashboard and mobile sender with reconnect, wake-lock request, camera selection, and stop/release controls.
+Use -E because this machine has a global PYTHONPATH that otherwise mixes environments. requirements.lock.txt records installed versions; requirements.txt declares ranges. No frontend build is required: the UI is plain HTML/CSS/JavaScript.
 
-The sender allows at most three unacknowledged JPEGs and skips captures under congestion; mobile Detail requests up to 960 px and Fast uses 640 px. It drops delay instead of queuing old frames. Capture rate and inference time are shown separately; speed depends on CPU, scene, and network. There is no verified 30 FPS/1080p guarantee. This implements JPEG over WebSocket, not WebRTC, and motion and appearance-assisted tracking, not ByteTrack/Kalman filtering.
+## Configuration and access
 
-## Reports and review
+Settings in [app/config.py](app/config.py) come from environment variables; [.env.example](.env.example) documents them but is not loaded automatically. VISIONSHIELD_ prefixes are supported and take precedence. Use VISIONSHIELD_DEBUG to avoid conflict with IDE tooling.
 
-Without a key, incident briefs are deterministic offline templates; they do not inspect image content. To enable image-based reports, set `GEMINI_API_KEY` before launch; `GEMINI_MODEL` defaults to `gemini-flash-latest`. Requests use the supported `google-genai` SDK with a timeout and offline fallback. Generation runs outside inference and only one report runs at a time. An API call sends an incident thumbnail and event details to Google.
+Demo mode trusts requests only when both Host and peer are local/private. Public requests require pairing; the bundled tunnel forces a nonlocal upstream Host. Camera access permits upload/status/time only. Operator access protects preview, telemetry, evidence and controls. Pairing is rate limited; cookies are HttpOnly, SameSite=Strict and Secure over HTTPS. Secrets arrive in URL fragments, are exchanged for cookies and removed from the address bar; default secrets rotate on restart.
 
-Alerts are heuristic observations for operator review. Bounding boxes cannot establish identity, authorization, intent, a medical diagnosis, or real-world distances in metres. Unattended objects and proximity do not prove danger or theft. The notes' uniqueness and accuracy claims have not been established. Zones start empty and persist per source in data/zones.json. Entry checks people at the bottom-centre of their boxes after temporal confirmation.
+For a stable HTTPS reverse proxy, set PUBLIC_BASE_URL, DEPLOYMENT_MODE=production and an explicit random ACCESS_TOKEN of at least 32 characters. Production disables the local bypass. Keep the origin inaccessible directly from the public internet, forward WebSocket upgrades and provide TLS at the proxy. Same-origin clients need no CORS override; ALLOWED_ORIGINS accepts an explicit JSON array. This is a shared-secret prototype without multi-user accounts, per-device revocation or production availability guarantees.
 
-## Connection and access
+Binding 0.0.0.0 accepts network connections; internet routing still requires a tunnel or public deployment. Private HTTP LAN addresses generally cannot request browser camera access. The temporary HTTPS tunnel changes URL on restart and depends on Cloudflare/network availability. See [Cloudflare quick tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) and [browser camera requirements](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
 
-The local dashboard generates a per-process secret pairing link; the QR is generated locally. The fragment is exchanged for an HttpOnly cookie and removed from the address bar. Restart invalidates pairing. Keep the link private: a paired device can access dashboard data and controls. Public HTTP and WebSocket routes require that cookie, except the phone bootstrap and pairing endpoints. The bundled tunnel forces a nonlocal origin Host so public requests cannot use the local-dashboard bypass. Local/LAN dashboard access is trusted; this is a single-operator prototype, not multi-user production access control.
+## Review rules and privacy
 
-Troubleshooting:
+- Track IDs describe tracking segments. Anonymous P-<session>-<number> person IDs can link segments using motion, torso colour, timestamps and similarity margins. Gap matches are explicitly uncertain. No face recognition, learned ReID or cross-camera identification is enabled. Descriptors expire from memory after 120 seconds by default and are never written to SQLite.
+- Restricted zones use person footpoints, configurable dwell (default 1.5 seconds) and at least three observations. Bag monitoring zones produce MEDIUM unattended-object candidates after six stationary seconds without a nearby associated person. Bags outside monitoring zones are not automatically alerts.
+- Knife warnings need confidence >=0.55, at least three observations over one second and person-box proximity. Knife recall is limited. Proximity does not prove holding, ownership or intent. Firearm/violence detection is unsupported.
+- Fall and loitering heuristics are disabled by default. Narrative reports are also disabled. ENABLE_AI_DOSSIER=true enables offline summaries; additionally setting GEMINI_API_KEY enables optional Google summaries and transmits incident thumbnails. External Gemini calls were not tested here.
+- Events include rules, confidence, duration, camera/track/person IDs, uncertainty and protected JPEG evidence. The UI supports filters, acknowledgement, false-positive review and deletion. Defaults retain seven days and at most 2,000 events, pruned on startup and hourly. STORE_EVENT_IMAGES=false disables saved thumbnails. Continuous live video is not recorded automatically.
 
-- No HTTPS link: check internet and tunnel stderr/network restrictions; restart remote mode. Refresh the connection dialog after readiness.
-- Camera denied: enable camera permission for the HTTPS site in browser settings and close other camera apps.
-- Another phone connected: stop the first phone; disconnected senders expire after 30 seconds.
-- Camera offline: keep the sender page foregrounded and the screen awake. Stop releases camera tracks.
-- Detector unavailable: inspect server logs and ensure `yolo11n.pt` exists in the project root.
+## Checks
 
-## Verification
-
-```powershell
+~~~powershell
 .\.venv\Scripts\python.exe -E -m pip check
 .\.venv\Scripts\python.exe -E -m unittest discover -s tests -v
-```
+node tests/mobile_transport_test.cjs
+.\.venv\Scripts\python.exe -E scripts/evaluate_tracking.py
+.\.venv\Scripts\python.exe -E scripts/evaluate_events.py
+.\.venv\Scripts\python.exe -E scripts/benchmark_preview.py
+~~~
 
-The installed versions are recorded in `requirements.lock.txt`. To repeat the browser check with the local server running, use `node tests/browser_smoke.cjs`; set `CHROME_PATH` if Chromium is elsewhere. Screenshots are saved in `artifacts/`.
+With the server running, node tests/browser_smoke.cjs exercises Chromium desktop/mobile layouts, zone controls, simulated camera transport, event review/evidence/deletion and recorded playback. Set CHROME_PATH if needed. With --remote running, use the venv Python to run tests/remote_smoke.py http://localhost:8000 for public HTTPS/WSS role checks. Synthetic fixtures are labelled and do not measure real-world accuracy.
 
-Regression checks cover worker-thread event delivery and bounded subscriber queues, remote authentication, invalid input handling, binary camera acknowledgement, and duplicate-frame inference prevention. A real phone on cellular still needs a manual acceptance test: pair, stream, disconnect/reconnect, draw a zone, and verify an alert and incident brief.
+Install requirements-dev.txt for formatting/linting, then run the venv Python with -E -m ruff format --check app scripts tests run.py and -E -m ruff check app scripts tests run.py.
 
-For an explicitly authorized remote smoke test against an already running tunnel, use `.\.venv\Scripts\python.exe -E tests/remote_smoke.py http://localhost:8001` (adjust the port). This exchanges the pairing secret internally and prints no secret URLs or cookies. Measured results and remaining acceptance checks are in `artifacts/verification.md`.
+The deployed model remains vendor-pretrained. An audited local 8/4/4-image fine-tuning smoke experiment completed and was **not promoted** because it did not consistently beat its baseline. Commands and exact results are in the engineering report.

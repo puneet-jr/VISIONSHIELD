@@ -1,0 +1,258 @@
+{
+  "scope": "SIMULATED perfect input detections on coloured rectangles; no real-world accuracy claim",
+  "metrics_definition": "IDF1 uses one-to-one global identity-count assignment. Switches count changes at matched observations; identity_fragments counts distinct IDs minus one (not official MOT fragmentation).",
+  "tracker_selection": "Retain custom motion/colour + global Hungarian assignment. ByteTrack is evaluated as an alternative, not silently enabled.",
+  "limitations": [
+    "No learned ReID or facial recognition.",
+    "Similar clothing can remain ambiguous.",
+    "Synthetic detections omit detector errors and cannot establish deployment tracking quality.",
+    "MOT17/MOT20 were not downloaded or evaluated."
+  ],
+  "scenarios": {
+    "ordinary": {
+      "custom_track": {
+        "IDTP": 90,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      },
+      "custom_person": {
+        "IDTP": 90,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      },
+      "bytetrack": {
+        "IDTP": 90,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      }
+    },
+    "occlusion": {
+      "custom_track": {
+        "IDTP": 82,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 82,
+        "matched_predictions": 82,
+        "total_predictions": 82
+      },
+      "custom_person": {
+        "IDTP": 82,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 82,
+        "matched_predictions": 82,
+        "total_predictions": 82
+      },
+      "bytetrack": {
+        "IDTP": 82,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 82,
+        "matched_predictions": 82,
+        "total_predictions": 82
+      }
+    },
+    "leave_return": {
+      "custom_track": {
+        "IDTP": 50,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 50,
+        "matched_predictions": 50,
+        "total_predictions": 50
+      },
+      "custom_person": {
+        "IDTP": 50,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 50,
+        "matched_predictions": 50,
+        "total_predictions": 50
+      },
+      "bytetrack": {
+        "IDTP": 25,
+        "IDFP": 24,
+        "IDFN": 25,
+        "IDF1": 0.5051,
+        "identity_switches": 1,
+        "identity_fragments": 1,
+        "ground_truth_boxes": 50,
+        "matched_predictions": 49,
+        "total_predictions": 49
+      }
+    },
+    "crossing": {
+      "custom_track": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "custom_person": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "bytetrack": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      }
+    },
+    "similar_clothing": {
+      "custom_track": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "custom_person": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "bytetrack": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      }
+    },
+    "simultaneous": {
+      "custom_track": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "custom_person": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      },
+      "bytetrack": {
+        "IDTP": 180,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 180,
+        "matched_predictions": 180,
+        "total_predictions": 180
+      }
+    },
+    "tracker_reset": {
+      "custom_track": {
+        "IDTP": 45,
+        "IDFP": 45,
+        "IDFN": 45,
+        "IDF1": 0.5,
+        "identity_switches": 1,
+        "identity_fragments": 1,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      },
+      "custom_person": {
+        "IDTP": 90,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      },
+      "bytetrack": {
+        "IDTP": 90,
+        "IDFP": 0,
+        "IDFN": 0,
+        "IDF1": 1.0,
+        "identity_switches": 0,
+        "identity_fragments": 0,
+        "ground_truth_boxes": 90,
+        "matched_predictions": 90,
+        "total_predictions": 90
+      }
+    }
+  }
+}

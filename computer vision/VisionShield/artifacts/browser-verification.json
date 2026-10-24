@@ -1,0 +1,104 @@
+{
+  "desktop": {
+    "width": 1440,
+    "scroll": 1425,
+    "status": "Event hub connected"
+  },
+  "mobile": {
+    "width": 390,
+    "scroll": 390
+  },
+  "camera": {
+    "status": "Live - streaming to VisionShield",
+    "stats": "12.3 uploads/s | 640 x 480 | RTT 6 ms | 0/3 in flight"
+  },
+  "recorded": {
+    "recorded": true,
+    "source": "recording:SIMULATED-transport.avi",
+    "online": true
+  },
+  "metrics": {
+    "resource_samples": [
+      {
+        "timestamp": 1792818268.6078823,
+        "cpu_percent_one_core_100": 1.5,
+        "rss_mb": 105.07
+      },
+      {
+        "timestamp": 1792818269.6186674,
+        "cpu_percent_one_core_100": 45.3,
+        "rss_mb": 124.07
+      },
+      {
+        "timestamp": 1792818270.5995626,
+        "cpu_percent_one_core_100": 195.1,
+        "rss_mb": 209.38
+      },
+      {
+        "timestamp": 1792818271.6027532,
+        "cpu_percent_one_core_100": 298.4,
+        "rss_mb": 239.87
+      },
+      {
+        "timestamp": 1792818272.6022549,
+        "cpu_percent_one_core_100": 312.5,
+        "rss_mb": 240.51
+      },
+      {
+        "timestamp": 1792818273.590658,
+        "cpu_percent_one_core_100": 270.3,
+        "rss_mb": 237.04
+      },
+      {
+        "timestamp": 1792818274.5948813,
+        "cpu_percent_one_core_100": 153.1,
+        "rss_mb": 240.6
+      },
+      {
+        "timestamp": 1792818275.593568,
+        "cpu_percent_one_core_100": 337.5,
+        "rss_mb": 240.74
+      },
+      {
+        "timestamp": 1792818276.596753,
+        "cpu_percent_one_core_100": 287.5,
+        "rss_mb": 240.74
+      },
+      {
+        "timestamp": 1792818277.6016338,
+        "cpu_percent_one_core_100": 317.2,
+        "rss_mb": 240.74
+      }
+    ],
+    "display_clients": [
+      {
+        "displayed_fps": 9.330223258913696,
+        "display_latency_ms": 9.3251953125,
+        "dropped_frames": 0,
+        "clock_uncertainty_ms": 5.5,
+        "updated_at": 1792818276.206943
+      }
+    ],
+    "capture_frames": 92,
+    "preview_frames_encoded": 92,
+    "inference_frames": 36,
+    "inference_dropped_frames": 52,
+    "inference_drop_percent": 59.09,
+    "preview_dropped_frames": 0,
+    "preview_fps": 12.1,
+    "inference_fps": 5.2,
+    "inference_ms": 187.7,
+    "suppressed_alerts": 0,
+    "stage_times_ms": {
+      "tracking_identity_ms": 0.07,
+      "association_temporal_ms": 0.02,
+      "assessment_persistence_ms": 0,
+      "detection_ms": 187.71
+    },
+    "latency_scope": "display estimates are client-reported capture-to-image-load with midpoint clock synchronization; hardware sensor delay is unmeasured"
+  },
+  "zone_controls": "draw/save/remove passed",
+  "event_review": "filtered list/details/evidence/false-positive/deletion passed",
+  "display_measurement_scope": "320x240 synthetic HTTP uploads; server receive-to-display estimate, hardware sensor delay unmeasured",
+  "errors": []
+}

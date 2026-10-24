@@ -12,7 +12,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
   send(){sent++;maximum=Math.max(maximum,vm.runInContext('pending.length',context));later(()=>this.onmessage?.({data:'{"ok":true}'}),500);}
   close(code=1000){this.readyState=3;this.onclose?.({code});}
  }
- const context=vm.createContext({document:{getElementById:id=>elements[id]},window:{addEventListener(){}},location:{hash:'',protocol:'https:',host:'example.test'},history:{replaceState(){}},URLSearchParams,isSecureContext:true,
+ const context=vm.createContext({Blob,ArrayBuffer,DataView,Uint8Array,Date,fetch:async()=>({json:async()=>({server_time_ms:Date.now()})}),document:{getElementById:id=>elements[id]},window:{addEventListener(){}},location:{hash:'',protocol:'https:',host:'example.test'},history:{replaceState(){}},URLSearchParams,isSecureContext:true,
   navigator:{mediaDevices:{getUserMedia:async()=>({getTracks:()=>[{stop(){released++}}]})}},WebSocket:Socket,performance:{now:()=>now},setTimeout:later,clearTimeout:id=>tasks.delete(id),console});
  vm.runInContext(fs.readFileSync('app/web/static/js/mobile.js','utf8'),context);
  await elements.start.onclick();Socket.last.onopen();

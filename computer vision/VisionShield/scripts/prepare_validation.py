@@ -1,4 +1,5 @@
-﻿"""Download a reproducible, small COCO val2017 check set; never used to train."""
+"""Download a reproducible, small COCO val2017 check set; never used to train."""
+
 from pathlib import Path
 from zipfile import ZipFile
 import json
@@ -20,16 +21,24 @@ def main():
                     for chunk in response.iter_bytes():
                         target.write(chunk)
         with ZipFile(archive) as dataset:
-            names = sorted(n for n in dataset.namelist() if "/labels/val2017/" in n and n.endswith(".txt"))
+            names = sorted(
+                n for n in dataset.namelist() if "/labels/val2017/" in n and n.endswith(".txt")
+            )
             positive, negative = [], []
             for name in names:
                 text = dataset.read(name).decode("utf-8")
-                group = positive if any(line.split()[0] == "43" for line in text.splitlines() if line.strip()) else negative
+                group = (
+                    positive
+                    if any(line.split()[0] == "43" for line in text.splitlines() if line.strip())
+                    else negative
+                )
                 if len(group) < 10:
                     group.append((name, text))
                 if len(positive) == len(negative) == 10:
                     break
-            assert len(positive) == len(negative) == 10, "Could not select labeled validation sample"
+            assert len(positive) == len(negative) == 10, (
+                "Could not select labeled validation sample"
+            )
             manifest = []
             for name, text in positive + negative:
                 stem = Path(name).stem
@@ -40,11 +49,20 @@ def main():
                     response.raise_for_status()
                     target.write_bytes(response.content)
                 (OUT / (stem + ".txt")).write_text(text, encoding="utf-8")
-                manifest.append({"file": target.name, "source": source, "labels_source": LABEL_URL, "split": "val2017"})
+                manifest.append(
+                    {
+                        "file": target.name,
+                        "source": source,
+                        "labels_source": LABEL_URL,
+                        "split": "val2017",
+                    }
+                )
                 print("Prepared", target.name, flush=True)
             (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    print("Prepared 20 COCO val2017 images: first 10 knife-positive and first 10 knife-negative IDs. This is a small biased check, not a full benchmark.")
+    print(
+        "Prepared 20 COCO val2017 images: first 10 knife-positive and first 10 knife-negative IDs. This is a small biased check, not a full benchmark."
+    )
+
 
 if __name__ == "__main__":
     main()
-

@@ -1,13 +1,11 @@
-"""High-Performance In-Memory Asynchronous Pub/Sub Event Hub
-Eliminates the need for external Redis message brokers during hackathons.
-Zero latency, thread-safe, sub-millisecond broadcast to all active WebSocket clients.
-"""
+"""Bounded in-process pub/sub, marshalled onto the ASGI event loop."""
+
 import asyncio
 from typing import Set, Dict, Any, List
-import json
 import logging
 
 logger = logging.getLogger("VisionShield.EventHub")
+
 
 class EventHub:
     def __init__(self):
@@ -19,6 +17,9 @@ class EventHub:
 
     def bind(self, loop):
         self._loop = loop
+        if loop is None:
+            self._subscribers.clear()
+            self._recent_events.clear()
 
     def publish(self, event):
         if self._loop and self._loop.is_running():
@@ -64,6 +65,7 @@ class EventHub:
     def get_recent_events(self) -> List[Dict[str, Any]]:
         """Return the most recent events."""
         return list(self._recent_events)
+
 
 # Global singleton event hub
 event_hub = EventHub()

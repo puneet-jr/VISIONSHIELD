@@ -1,12 +1,8 @@
-"""Multimodal Agentic Incident Dispatcher
-Produces real-time, human-grade Tactical Incident Dossiers from security threat events.
-
-Features:
-1. Automatically captures the threat keyframe and encodes it to base64.
-2. Leverages Google Gemini Flash Multimodal API when GEMINI_API_KEY is available.
-3. Automatically falls back to an offline Tactical Expert Synthesizer if offline,
-   guaranteeing 100% demo uptime on stage during the hackathon!
+"""Optional incident summaries. Disabled by default; never the basis for an alert.
+Gemini receives a thumbnail only when explicitly configured and enabled.
+Offline summaries restate structured observations without image interpretation.
 """
+
 import base64
 import json
 import logging
@@ -19,6 +15,7 @@ from app.db.database import db
 
 logger = logging.getLogger("VisionShield.IncidentAgent")
 
+
 class IncidentDispatcher:
     def __init__(self):
         self.api_key = config.GEMINI_API_KEY
@@ -29,13 +26,20 @@ class IncidentDispatcher:
         if self.api_key:
             try:
                 from google import genai
-                self._gemini_client = genai.Client(api_key=self.api_key, http_options={"timeout": 15000})
+
+                self._gemini_client = genai.Client(
+                    api_key=self.api_key, http_options={"timeout": 15000}
+                )
                 logger.info("Multimodal AI Dispatcher successfully configured with Gemini API.")
             except Exception as e:
-                logger.warning(f"Failed to configure Gemini API client: {e}. Will use Offline Tactical Expert.")
+                logger.warning(
+                    f"Failed to configure Gemini API client: {e}. Will use Offline Tactical Expert."
+                )
                 self._gemini_client = None
 
-    def generate_dossier(self, event: Dict[str, Any], keyframe: Optional[np.ndarray]) -> Dict[str, Any]:
+    def generate_dossier(
+        self, event: Dict[str, Any], keyframe: Optional[np.ndarray]
+    ) -> Dict[str, Any]:
         """Generate structured tactical incident dossier for a HIGH severity alert."""
         b64_image = None
         if keyframe is not None:
@@ -54,14 +58,19 @@ class IncidentDispatcher:
             try:
                 dossier = self._call_gemini(event, b64_image)
                 if dossier:
+                    dossier["event_id"] = event.get("event_id")
+                    dossier["report_mode"] = "gemini_summary"
                     dossier["snapshot_base64"] = b64_image
                     db.insert_incident(dossier)
                     return dossier
             except Exception as e:
-                logger.warning(f"Gemini API call failed ({e}). Falling back to Tactical Synthesizer.")
+                logger.warning(
+                    f"Gemini API call failed ({e}). Falling back to Tactical Synthesizer."
+                )
 
         # Offline Tactical Expert Synthesizer (Zero-latency fallback)
         dossier = self._synthesize_offline(event)
+        dossier["event_id"] = event.get("event_id")
         dossier["report_mode"] = "offline_template"
         dossier["snapshot_base64"] = b64_image
         db.insert_incident(dossier)
@@ -69,11 +78,11 @@ class IncidentDispatcher:
 
     def _call_gemini(self, event: Dict[str, Any], b64_image: str) -> Optional[Dict[str, Any]]:
         prompt = f"""
-        You are a Tactical Security Operations Center AI Commander analyzing a live security alert.
-        Alert Type: {event.get('alert_type')}
-        Object: {event.get('object_label')} (ID #{event.get('track_id')})
-        Threat Score: {event.get('threat_score')} / 100
-        Explanation: {event.get('explanation')}
+        Summarize a candidate observation for human review. Do not infer intent, ownership, authorization or medical status. The deterministic event rules are the justification; your text is only a summary.
+        Alert Type: {event.get("alert_type")}
+        Object: {event.get("object_label")} (ID #{event.get("track_id")})
+        Threat Score: {event.get("threat_score")} / 100
+        Explanation: {event.get("explanation")}
 
         Analyze this surveillance snapshot and provide a strictly formatted JSON response with:
         {{
@@ -87,10 +96,15 @@ class IncidentDispatcher:
         Output ONLY the raw JSON without markdown formatting.
         """
         from google.genai import types
+
         response = self._gemini_client.models.generate_content(
             model=config.GEMINI_MODEL,
-            contents=[prompt, types.Part.from_bytes(data=base64.b64decode(b64_image), mime_type="image/jpeg")],
-            config={"response_mime_type": "application/json"})
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=base64.b64decode(b64_image), mime_type="image/jpeg"),
+            ],
+            config={"response_mime_type": "application/json"},
+        )
         text = response.text.strip()
         if text.startswith("```json"):
             text = text[7:-3].strip()
@@ -105,17 +119,22 @@ class IncidentDispatcher:
         alert_type = event.get("alert_type", "SECURITY_ALERT")
         obj = event.get("object_label", "Entity")
         tid = event.get("track_id", 0)
-        score = event.get("threat_score", 85.0)
 
         if alert_type == "UNATTENDED_LUGGAGE":
             title = f"UNATTENDED BAG CANDIDATE [{obj.upper()} #{tid}]"
-            summary = event.get("explanation", "A stationary bag remained separated from its associated owner.")
+            summary = event.get(
+                "explanation",
+                "A stationary bag remained separated from its associated owner.",
+            )
             subject = f"Detected {obj}, track #{tid}. Ownership is a spatial association, not verified identity."
             rating = 8
             action = "Review live footage and contact the site supervisor to verify ownership."
         elif alert_type == "FALL_DETECTED":
             title = f"POSSIBLE FALL [PERSON #{tid}]"
-            summary = event.get("explanation", "Bounding-box geometry changed in a way consistent with a possible fall.")
+            summary = event.get(
+                "explanation",
+                "Bounding-box geometry changed in a way consistent with a possible fall.",
+            )
             subject = f"Person track #{tid}. Physical condition has not been verified."
             rating = 8
             action = "Check the person's condition and follow the site's assistance procedure."
@@ -128,7 +147,9 @@ class IncidentDispatcher:
         elif alert_type == "POSSIBLE_WEAPON":
             title = f"POSSIBLE KNIFE NEAR PERSON [OBJECT #{tid}]"
             summary = event.get("explanation", "Repeated knife-class detections near a person.")
-            subject = "Object classified as knife. Hand contact, intent and danger are not established."
+            subject = (
+                "Object classified as knife. Hand contact, intent and danger are not established."
+            )
             rating = 8
             action = "Have an operator review the live scene promptly and follow site policy if a threat is verified."
         else:
@@ -145,8 +166,9 @@ class IncidentDispatcher:
             "executive_summary": summary,
             "subject_description": subject,
             "threat_level_rating": rating,
-            "recommended_action": action
+            "recommended_action": action,
         }
+
 
 # Global singleton dispatcher
 incident_dispatcher = IncidentDispatcher()

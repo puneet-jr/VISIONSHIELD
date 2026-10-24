@@ -3,6 +3,11 @@ const $ = id => document.getElementById(id);
 let media, socket, wake;
 let running = false, encoding = false, runId = 0, retries = 0;
 let pumpTimer, reconnectTimer, sent = 0, started = 0, pending = [], roundtrip = 0;
+let clockOffset = 0;
+async function syncClock() {
+    try { const before=Date.now(); const response=await fetch('/api/time'); const result=await response.json(); clockOffset=result.server_time_ms-(before+Date.now())/2; }
+    catch { clockOffset=0; }
+}
 const status = message => { $('status').textContent = message; };
 const setControls = active => {
     $('start').disabled = active; $('stop').disabled = !active;
@@ -29,13 +34,17 @@ function pump() {
     canvas.width = Math.min(Number($('quality').value), video.videoWidth);
     canvas.height = Math.round(canvas.width * video.videoHeight/video.videoWidth);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const capturedAt=(Date.now()+clockOffset)/1000;
     encoding = true;
     canvas.toBlob(blob => {
         if (runId === version) encoding = false;
         if (!blob || !running || runId !== version || socket !== active || active.readyState !== WebSocket.OPEN) return;
         if (blob.size > 512000 || pending.length >= 3 || active.bufferedAmount > 220000) return;
         pending.push(performance.now());
-        active.send(blob);
+        const header=new ArrayBuffer(12), view=new DataView(header);
+        new Uint8Array(header).set([86,83,67,49]); // VSC1 + server-aligned capture time.
+        view.setFloat64(4,capturedAt,false);
+        active.send(new Blob([header,blob],{type:'application/octet-stream'}));
     }, 'image/jpeg', Number($('quality').value) > 640 ? .78 : .65);
 }
 
@@ -84,7 +93,7 @@ async function stop() {
 $('start').onclick = async () => {
     try {
         if (!isSecureContext || !navigator.mediaDevices) throw Error('Camera access requires HTTPS. Start VisionShield with --remote and scan its QR code.');
-        setControls(true); await pair();
+        setControls(true); await pair(); await syncClock();
         const width = Number($('quality').value);
         media = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:$('facing').value},width:{ideal:width},height:{ideal:Math.round(width*.75)},frameRate:{ideal:20,max:24}},audio:false});
         $('preview').srcObject = media; await $('preview').play();

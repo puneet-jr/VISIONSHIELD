@@ -6,3 +6,4 @@ tools/*.exe
 .env
 artifacts/browser-profile/
 datasets/
+runs/

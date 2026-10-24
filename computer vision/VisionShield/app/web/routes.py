@@ -2,7 +2,16 @@
 Serves Dashboard UI, Zero-App Mobile Camera Streamer, MJPEG Video Feed,
 REST APIs for zones/events, and Real-Time WebSocket channels.
 """
-from fastapi import APIRouter, Request, Response, WebSocket, WebSocketDisconnect, UploadFile, File
+
+from fastapi import (
+    APIRouter,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    UploadFile,
+    File,
+)
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from pathlib import Path
 from io import BytesIO
@@ -18,7 +27,13 @@ import time
 import socket
 import json
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any, Literal
+from datetime import datetime
+from uuid import uuid4
+import re
+import base64
+from app.core.security import role, origin_allowed, pair_allowed
+from app.core.observability import metrics
 
 from app.ingestion.video_stream import video_manager
 from app.engine.pipeline import pipeline
@@ -28,6 +43,7 @@ from app.db.database import db
 
 logger = logging.getLogger("VisionShield.Routes")
 router = APIRouter()
+
 
 def get_local_ip() -> str:
     """Detect laptop local Wi-Fi IP address for the phone QR code."""
@@ -40,7 +56,9 @@ def get_local_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
+
 # --- Page Routes ---
+
 
 @router.get("/", response_class=HTMLResponse)
 async def serve_dashboard(request: Request):
@@ -51,6 +69,7 @@ async def serve_dashboard(request: Request):
     html = html.replace("{{LOCAL_IP}}", local_ip)
     return HTMLResponse(content=html)
 
+
 @router.get("/phone", response_class=HTMLResponse)
 async def serve_phone_camera(request: Request):
     """Serve Zero-App Mobile Browser Camera Streamer."""
@@ -58,7 +77,9 @@ async def serve_phone_camera(request: Request):
         html = f.read()
     return HTMLResponse(content=html)
 
+
 # --- Video Ingestion & MJPEG Streaming ---
+
 
 async def generate_mjpeg():
     """Generator yielding multipart JPEG frames for the live dashboard player."""
@@ -71,13 +92,14 @@ async def generate_mjpeg():
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
         await asyncio.sleep(0.02)
 
+
 @router.get("/video_feed")
 async def video_feed():
     """MJPEG Live Annotated Surveillance Stream."""
     return StreamingResponse(
-        generate_mjpeg(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
+        generate_mjpeg(), media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
 
 @router.post("/api/upload_frame")
 async def upload_frame(file: UploadFile = File(...)):
@@ -92,19 +114,27 @@ async def upload_frame(file: UploadFile = File(...)):
         return {"status": "ok"}
     raise HTTPException(422, "Invalid image")
 
+
 # --- REST APIs ---
+
 
 @router.get("/api/info")
 async def get_system_info():
     return {
         "local_ip": get_local_ip(),
-        "fps": round(video_manager.fps, 1) if time.time() - video_manager.last_frame_time < 5 else 0,
+        "fps": round(video_manager.fps, 1)
+        if time.time() - video_manager.last_frame_time < 5
+        else 0,
         "inference_ms": round(pipeline.inference_ms, 1),
         "processing_fps": round(pipeline.processing_fps, 1),
         "preview_fps": round(video_manager.preview_fps, 1),
         "detection_counts": pipeline.last_detection_counts,
         "source_path": video_manager.source_path,
-        "camera_online": video_manager.camera_online and time.time() - video_manager.last_frame_time < 5,
+        "camera_id": video_manager.camera_id,
+        "source_error": video_manager.source_error,
+        "recorded": video_manager.recorded,
+        "camera_online": video_manager.camera_online
+        and time.time() - video_manager.last_frame_time < 5,
         "detector_ready": pipeline.detector.model is not None,
         "detector_error": pipeline.detector.error,
         "backend": getattr(pipeline.detector, "backend", "torch"),
@@ -113,24 +143,41 @@ async def get_system_info():
         "model": Path(config.YOLO_MODEL).name,
         "zone_dwell_seconds": config.ZONE_DWELL_SECONDS,
         "knife_confidence": config.KNIFE_CONFIDENCE,
-        "report_mode": "Gemini" if incident_dispatcher._gemini_client else "Offline template",
+        "report_mode": "Disabled"
+        if not config.ENABLE_AI_DOSSIER
+        else "Gemini"
+        if incident_dispatcher._gemini_client
+        else "Offline template",
         "remote_ready": config.PUBLIC_BASE_URL.startswith("https://"),
         "source_type": video_manager.source_type,
-        "active_tracks": sum(t.disappeared_count == 0 for t in list(pipeline.tracker.tracks.values())) if video_manager.camera_online and time.time() - video_manager.last_frame_time < 5 else 0,
-        "zones": current_zones()
+        "active_tracks": sum(
+            t.disappeared_count == 0 for t in list(pipeline.tracker.tracks.values())
+        )
+        if video_manager.camera_online and time.time() - video_manager.last_frame_time < 5
+        else 0,
+        "zones": current_zones(),
     }
+
 
 @router.post("/api/source")
 async def change_source(payload: Dict[str, Any]):
     source = str(payload.get("source", "0"))
     if source not in {"0", "1", "phone_upload"}:
-        raise HTTPException(422, "Choose webcam 0, webcam 1, or phone_upload")
-    await asyncio.to_thread(video_manager.start, source)
+        try:
+            video_manager.recording_path(source)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    try:
+        await asyncio.to_thread(video_manager.start, source)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return {"status": "ok", "source": source}
+
 
 @router.get("/api/zones")
 async def get_zones():
     return {"zones": current_zones()}
+
 
 @router.post("/api/zones")
 async def update_zones(payload: Dict[str, Any]):
@@ -143,20 +190,25 @@ async def update_zones(payload: Dict[str, Any]):
             validated.append(ZonePayload.model_validate(zone).model_dump())
         except Exception as exc:
             raise HTTPException(422, "Invalid polygon: use 3-20 normalized points") from exc
+
     def apply():
         with pipeline.lock:
             if pipeline.geofence.source != video_manager.source_path:
                 pipeline.geofence.select_source(video_manager.source_path)
             pipeline.geofence.replace_zones(validated)
+
     await asyncio.to_thread(apply)
     return {"status": "ok", "zones_count": len(validated)}
+
 
 class ZonePayload(BaseModel):
     id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=100)
     points: list[tuple[float, float]] = Field(min_length=3, max_length=20)
     severity: str = Field(default="HIGH", pattern="^(HIGH|MEDIUM|LOW)$")
-    color: str = Field(default="#ef4444", pattern="^#[0-9a-fA-F]{6}$")
+    color: str = Field(default="#7dd3fc", pattern="^#[0-9a-fA-F]{6}$")
+    purpose: Literal["restricted", "object_monitor"] = "restricted"
+    dwell_seconds: float = Field(default=1.5, ge=0.5, le=300)
 
     @field_validator("points")
     @classmethod
@@ -165,30 +217,111 @@ class ZonePayload(BaseModel):
             raise ValueError("Coordinates must be normalized")
         if len(set(points)) != len(points):
             raise ValueError("Duplicate vertices")
-        area = abs(sum(points[i][0]*points[(i+1)%len(points)][1] - points[(i+1)%len(points)][0]*points[i][1] for i in range(len(points)))) / 2
+        area = (
+            abs(
+                sum(
+                    points[i][0] * points[(i + 1) % len(points)][1]
+                    - points[(i + 1) % len(points)][0] * points[i][1]
+                    for i in range(len(points))
+                )
+            )
+            / 2
+        )
         if area < 0.001:
             raise ValueError("Polygon is too small or degenerate")
+
         def orientation(a, b, c):
-            return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
+            return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
         n = len(points)
         for i in range(n):
-            for j in range(i+1, n):
-                if j == i+1 or (i == 0 and j == n-1):
+            for j in range(i + 1, n):
+                if j == i + 1 or (i == 0 and j == n - 1):
                     continue
-                a, b, c, d = points[i], points[(i+1)%n], points[j], points[(j+1)%n]
-                if orientation(a,b,c)*orientation(a,b,d) <= 0 and orientation(c,d,a)*orientation(c,d,b) <= 0:
+                a, b, c, d = (
+                    points[i],
+                    points[(i + 1) % n],
+                    points[j],
+                    points[(j + 1) % n],
+                )
+                if (
+                    orientation(a, b, c) * orientation(a, b, d) <= 0
+                    and orientation(c, d, a) * orientation(c, d, b) <= 0
+                ):
                     raise ValueError("Polygon edges cross")
         return points
 
+
 @router.get("/api/events")
-def get_events(limit: int = Query(50, ge=1, le=200)):
-    return {"events": db.get_recent_events(limit)}
+def get_events(
+    limit: int = Query(50, ge=1, le=200),
+    camera: str | None = None,
+    event_type: str | None = None,
+    severity: Literal["HIGH", "MEDIUM", "LOW"] | None = None,
+    status: Literal["new", "acknowledged", "false_positive"] | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
+    if start and end and start > end:
+        raise HTTPException(422, "start must be <= end")
+    return {
+        "events": db.get_recent_events(
+            limit,
+            camera,
+            event_type,
+            severity,
+            status,
+            start.timestamp() if start else None,
+            end.timestamp() if end else None,
+        )
+    }
+
+
+@router.get("/api/events/{event_id}")
+def event_details(event_id: str):
+    event = db.get_event(event_id)
+    if not event:
+        raise HTTPException(404, "Event not found or expired")
+    return event
+
+
+@router.get("/api/events/{event_id}/evidence")
+def event_evidence(event_id: str):
+    event = db.get_event(event_id, include_evidence=True)
+    if not event or not event.get("evidence_base64"):
+        raise HTTPException(404, "Evidence unavailable, disabled or expired")
+    return Response(
+        base64.b64decode(event["evidence_base64"]),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+class ReviewPayload(BaseModel):
+    status: Literal["new", "acknowledged", "false_positive"]
+
+
+@router.patch("/api/events/{event_id}")
+def review_event(event_id: str, payload: ReviewPayload):
+    if not db.review_event(event_id, payload.status):
+        raise HTTPException(404, "Event not found")
+    return db.get_event(event_id)
+
+
+@router.delete("/api/events/{event_id}")
+def delete_event(event_id: str):
+    if not db.delete_event(event_id):
+        raise HTTPException(404, "Event not found")
+    return {"status": "deleted"}
+
 
 @router.get("/api/incidents")
 def get_incidents(limit: int = Query(10, ge=1, le=50)):
     return {"incidents": db.get_recent_incidents(limit)}
 
+
 # --- WebSocket Channel ---
+
 
 @router.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket):
@@ -198,13 +331,12 @@ async def websocket_events(websocket: WebSocket):
         return
     await websocket.accept()
     queue = event_hub.subscribe()
-    
+
     # Send initial snapshot of recent events
     recent = event_hub.get_recent_events()
-    for ev in recent:
-        await websocket.send_text(json.dumps(ev))
-
     try:
+        for ev in recent:
+            await websocket.send_text(json.dumps({**ev, "replay": True}))
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=20)
@@ -216,51 +348,96 @@ async def websocket_events(websocket: WebSocket):
     except Exception as e:
         logger.warning(f"WebSocket client error: {e}")
         event_hub.unsubscribe(queue)
+    finally:
+        event_hub.unsubscribe(queue)
 
 
 def authorized(connection):
-    # Local dashboard access only; a public Host always requires a session token.
-    import ipaddress
-    host = connection.url.hostname or ""
-    local = host in {"localhost", "testserver"}
-    try:
-        address = ipaddress.ip_address(host)
-        local = address.is_loopback or address.is_private
-    except ValueError:
-        pass
-    return local or secrets.compare_digest(connection.cookies.get("vs_access", ""), config.ACCESS_TOKEN)
+    return role(connection) == "operator" and origin_allowed(connection)
 
 
-def phone_url(request):
+def phone_url(request, access="camera"):
     base = config.PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
-    return base + "/phone#token=" + config.ACCESS_TOKEN
+    return base + (
+        "/login#token=" + config.ACCESS_TOKEN
+        if access == "operator"
+        else "/phone#token=" + config.CAMERA_TOKEN
+    )
 
 
 @router.post("/api/pair")
 async def pair(request: Request):
-    payload = await request.json()
-    if not secrets.compare_digest(str(payload.get("token", "")), config.ACCESS_TOKEN):
-        raise HTTPException(403, "Invalid pairing link. Scan the QR code again.")
-    response = JSONResponse({"status": "paired"})
-    response.set_cookie("vs_access", config.ACCESS_TOKEN, httponly=True, secure=bool(config.PUBLIC_BASE_URL), samesite="strict")
+    if not origin_allowed(request):
+        raise HTTPException(403, "Origin is not allowed")
+    if not pair_allowed(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "Too many pairing attempts; retry in one minute")
+    try:
+        payload = await request.json()
+    except ValueError as exc:
+        raise HTTPException(422, "Expected a JSON token") from exc
+    token = payload.get("token") if isinstance(payload, dict) else None
+    if not isinstance(token, str) or not 1 <= len(token) <= 200:
+        raise HTTPException(422, "Invalid token format")
+    access = (
+        "operator"
+        if secrets.compare_digest(token, config.ACCESS_TOKEN)
+        else "camera"
+        if secrets.compare_digest(token, config.CAMERA_TOKEN)
+        else None
+    )
+    if not access:
+        raise HTTPException(403, "Invalid pairing link. Scan a new QR code.")
+    response = JSONResponse({"status": "paired", "role": access})
+    response.set_cookie(
+        "vs_access",
+        token,
+        httponly=True,
+        secure=bool(config.PUBLIC_BASE_URL) or request.url.scheme == "https",
+        samesite="strict",
+    )
+    device = request.cookies.get("vs_device", "")
+    if not re.fullmatch("[0-9a-f]{32}", device):
+        device = uuid4().hex
+    response.set_cookie(
+        "vs_device",
+        device,
+        httponly=True,
+        secure=bool(config.PUBLIC_BASE_URL) or request.url.scheme == "https",
+        samesite="strict",
+    )
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
 @router.get("/api/connection")
-def connection_info(request: Request):
-    return {"phone_url": phone_url(request), "remote_ready": bool(config.PUBLIC_BASE_URL)}
+def connection_info(request: Request, access: Literal["camera", "operator"] = "camera"):
+    return {
+        "phone_url": phone_url(request, access),
+        "remote_ready": bool(config.PUBLIC_BASE_URL),
+        "access_role": access,
+    }
 
 
 @router.get("/api/qr")
-def pairing_qr(request: Request):
+def pairing_qr(request: Request, access: Literal["camera", "operator"] = "camera"):
     output = BytesIO()
-    qrcode.make(phone_url(request)).save(output, format="PNG")
-    return Response(output.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
+    qrcode.make(phone_url(request, access)).save(output, format="PNG")
+    return Response(
+        output.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"}
+    )
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login_page():
+    return HTMLResponse("""<!doctype html><html><meta name="viewport" content="width=device-width"><title>VisionShield pairing</title>
+    <body style="background:#101923;color:#e0edf5;font:18px system-ui;padding:40px"><h1>Operator pairing</h1><p id="status">Pairing this browser...</p>
+    <script>const token=new URLSearchParams(location.hash.slice(1)).get('token');history.replaceState(null,'',location.pathname);
+    fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).then(r=>{if(!r.ok)throw Error('Pairing failed. Ask the operator for a new dashboard link.');location.replace('/')}).catch(e=>document.getElementById('status').textContent=e.message);</script></body></html>""")
 
 
 @router.websocket("/ws/camera")
 async def camera_socket(websocket: WebSocket):
-    if not authorized(websocket):
+    if role(websocket) not in {"camera", "operator"} or not origin_allowed(websocket):
         await websocket.close(code=1008)
         return
     await websocket.accept()
@@ -270,6 +447,10 @@ async def camera_socket(websocket: WebSocket):
         return
     async with camera_lock:
         await asyncio.to_thread(video_manager.start, "phone_upload")
+        device = websocket.cookies.get("vs_device", "")
+        video_manager.camera_id = "phone:" + (
+            device if re.fullmatch("[0-9a-f]{32}", device) else uuid4().hex
+        )
         stream_generation = video_manager.generation
         try:
             while True:
@@ -280,11 +461,28 @@ async def camera_socket(websocket: WebSocket):
                 if len(data) > 512_000:
                     await websocket.close(code=1009)
                     return
-                frame = await asyncio.to_thread(cv2.imdecode, np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                captured_at = None
+                if data[:4] == b"VSC1":
+                    import struct
+
+                    if len(data) < 12:
+                        continue
+                    captured_at = struct.unpack(">d", data[4:12])[0]
+                    if not time.time() - 30 <= captured_at <= time.time() + 1:
+                        captured_at = None
+                    data = data[12:]
+                frame = await asyncio.to_thread(
+                    cv2.imdecode, np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR
+                )
                 if frame is None or max(frame.shape[:2]) > 1920:
                     await websocket.send_json({"error": "Invalid or oversized image"})
                     continue
-                accepted = await asyncio.to_thread(video_manager.push_phone_frame, frame, stream_generation)
+                accepted = await asyncio.to_thread(
+                    video_manager.push_phone_frame,
+                    frame,
+                    stream_generation,
+                    captured_at,
+                )
                 if not accepted:
                     await websocket.close(code=4000, reason="Camera source changed")
                     return
@@ -295,19 +493,210 @@ async def camera_socket(websocket: WebSocket):
             if video_manager.generation == stream_generation:
                 video_manager.camera_online = False
 
+
 camera_lock = asyncio.Lock()
 
 
 @router.get("/api/telemetry")
 async def live_telemetry():
     snapshot = pipeline.snapshot
-    if (snapshot.get("generation") != video_manager.generation or
-        not video_manager.camera_online or time.time() - snapshot.get("captured_at", 0) > 1):
-        return {"tracks": [], "zones": current_zones(), "confirmed_zones": [], "stale": True}
-    return {**snapshot, "stale": False, "age_ms": round((time.time()-snapshot["captured_at"])*1000)}
+    if (
+        snapshot.get("generation") != video_manager.generation
+        or not video_manager.camera_online
+        or time.time() - snapshot.get("captured_at", 0) > 1
+    ):
+        return {
+            "tracks": [],
+            "zones": current_zones(),
+            "confirmed_zones": [],
+            "stale": True,
+        }
+    return {
+        **snapshot,
+        "stale": False,
+        "age_ms": round((time.time() - snapshot["captured_at"]) * 1000),
+    }
 
 
 def current_zones():
     if pipeline.geofence.source == video_manager.source_path:
         return pipeline.geofence.get_zones_dict()
     return pipeline.geofence.saved.get(video_manager.source_path, [])
+
+
+@router.get("/health/live")
+def liveness():
+    return {"status": "alive", "version": "3.0.0"}
+
+
+@router.get("/health/ready")
+def readiness():
+    ready = pipeline.detector.model is not None and pipeline.detector.error is None
+    return JSONResponse(
+        {
+            "status": "ready" if ready else "awaiting_source_or_model",
+            "camera_online": video_manager.camera_online,
+        },
+        status_code=200 if ready else 503,
+    )
+
+
+@router.get("/api/time")
+def server_time():
+    return {"server_time_ms": time.time() * 1000}
+
+
+@router.get("/api/camera/status")
+def camera_status():
+    return {
+        "camera_online": video_manager.camera_online,
+        "source_error": video_manager.source_error,
+        "camera_id": video_manager.camera_id,
+    }
+
+
+@router.get("/api/metrics")
+def live_metrics():
+    return metrics.snapshot(video_manager, pipeline)
+
+
+class DisplayMetric(BaseModel):
+    client_id: str = Field(min_length=1, max_length=80, pattern="^[A-Za-z0-9-]+$")
+    displayed_fps: float = Field(ge=0, le=120)
+    display_latency_ms: float = Field(ge=0, le=60000)
+    dropped_frames: int = Field(ge=0, le=10000000)
+    clock_uncertainty_ms: float = Field(ge=0, le=60000)
+
+
+@router.post("/api/client-metrics")
+def display_metrics(payload: DisplayMetric):
+    values = payload.model_dump()
+    client_id = values.pop("client_id")
+    metrics.display(client_id, values)
+    return {"status": "ok"}
+
+
+@router.get("/api/insights")
+def insights():
+    from app.core.model_registry import model_information
+
+    return {
+        "model": model_information(pipeline.detector),
+        "pipeline": dict(pipeline.stage_times),
+        "metrics": metrics.snapshot(video_manager, pipeline),
+        "identities": pipeline.identities.public_history()[-50:],
+        "source": {
+            "camera_id": video_manager.camera_id,
+            "type": video_manager.source_type,
+            "recorded": video_manager.recorded,
+        },
+        "rules": {
+            "kind": "deterministic review policy, not a learned threat classifier",
+            "knife_confidence": config.KNIFE_CONFIDENCE,
+            "knife_min_observations": config.KNIFE_MIN_OBSERVATIONS,
+            "knife_seconds": config.KNIFE_CONFIRM_SECONDS,
+            "bag_seconds": config.ABANDONED_DWELL_SECONDS,
+            "bag_requires_monitor_zone": config.REQUIRE_BAG_MONITOR_ZONE,
+            "zone_seconds": config.ZONE_DWELL_SECONDS,
+            "duplicate_cooldown_seconds": config.ALERT_COOLDOWN_SECONDS,
+        },
+    }
+
+
+@router.get("/api/identities")
+def identity_history():
+    return {
+        "session_history": pipeline.identities.public_history(),
+        "persisted_segments": db.get_identity_segments(),
+        "scope": "anonymous camera/session associations; no face recognition; no stored descriptors",
+    }
+
+
+@router.get("/api/recordings")
+def recordings():
+    root = Path(config.RECORDINGS_DIR)
+    return {
+        "recordings": [
+            {"source": "recording:" + p.name, "name": p.name, "recorded": True}
+            for p in sorted(root.glob("*"))
+            if p.suffix.lower() in {".avi", ".mp4", ".mov", ".mkv"}
+        ]
+    }
+
+
+@router.get("/api/diagnostics")
+async def diagnostics(request: Request):
+    import httpx
+    from urllib.parse import urlsplit
+
+    output = {
+        "binding": config.HOST,
+        "role": role(request),
+        "secure_public_origin": config.PUBLIC_BASE_URL or None,
+        "api": "reachable",
+        "websocket_paths": ["/ws/events", "/ws/camera", "/ws/preview"],
+        "cors": {
+            "mode": "same-origin by default",
+            "allowed_origins": config.ALLOWED_ORIGINS,
+        },
+        "stream": {
+            "online": video_manager.camera_online,
+            "error": video_manager.source_error,
+        },
+    }
+    if not config.PUBLIC_BASE_URL:
+        output["remote"] = {
+            "code": "REMOTE_NOT_CONFIGURED",
+            "detail": "Use --remote or configure a stable public HTTPS reverse proxy. 0.0.0.0 alone is not internet routing.",
+        }
+        return output
+    host = urlsplit(config.PUBLIC_BASE_URL).hostname
+    try:
+        await asyncio.wait_for(asyncio.to_thread(socket.getaddrinfo, host, 443), 5)
+    except (OSError, asyncio.TimeoutError):
+        output["remote"] = {
+            "code": "DNS_FAILURE",
+            "detail": "Public hostname could not be resolved",
+        }
+        return output
+    try:
+        async with httpx.AsyncClient(timeout=5, trust_env=False, follow_redirects=False) as client:
+            response = await client.get(config.PUBLIC_BASE_URL + "/health/live")
+        code = (
+            "OK"
+            if response.status_code == 200
+            else "AUTH_FAILURE"
+            if response.status_code in {401, 403}
+            else "BACKEND_UNREACHABLE"
+        )
+        output["remote"] = {"code": code, "http_status": response.status_code}
+    except httpx.TransportError:
+        output["remote"] = {
+            "code": "BACKEND_UNREACHABLE",
+            "detail": "DNS resolved but HTTPS backend/tunnel is unavailable",
+        }
+    return output
+
+
+@router.websocket("/ws/preview")
+async def preview_socket(websocket: WebSocket):
+    if not authorized(websocket):
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    last = -1
+    try:
+        while True:
+            with video_manager.lock:
+                jpeg, identifier, metadata = (
+                    video_manager.jpeg,
+                    video_manager.jpeg_id,
+                    dict(video_manager.preview_metadata),
+                )
+            if jpeg and identifier != last:
+                await websocket.send_json({"type": "FRAME", "sequence": identifier, **metadata})
+                await websocket.send_bytes(jpeg)
+                last = identifier
+            await asyncio.sleep(0.01)
+    except (WebSocketDisconnect, RuntimeError):
+        pass

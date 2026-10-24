@@ -1,0 +1,130 @@
+{
+  "scope": "SIMULATED deterministic policy fixtures, not real detection or threat accuracy",
+  "scenario_results": [
+    {
+      "scenario": "normal",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "bag_no_zone",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "bag_monitored",
+      "expected": "UNATTENDED_OBJECT_CANDIDATE",
+      "actual": "UNATTENDED_OBJECT_CANDIDATE",
+      "events": 1,
+      "first_alert_seconds": 6.0,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "zone_brief",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "zone_sustained",
+      "expected": "PERIMETER_BREACH",
+      "actual": "PERIMETER_BREACH",
+      "events": 1,
+      "first_alert_seconds": 1.5,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "knife_low_confidence",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "knife_isolated",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "knife_persistent",
+      "expected": "POSSIBLE_WEAPON",
+      "actual": "POSSIBLE_WEAPON",
+      "events": 1,
+      "first_alert_seconds": 1.0,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "knife_far_from_person",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    },
+    {
+      "scenario": "bag_with_nearby_person",
+      "expected": null,
+      "actual": null,
+      "events": 0,
+      "first_alert_seconds": null,
+      "matches_expectation": true,
+      "simulated_duration_seconds": 10
+    }
+  ],
+  "per_class": {
+    "PERIMETER_BREACH": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "F1": 1.0
+    },
+    "POSSIBLE_WEAPON": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "F1": 1.0
+    },
+    "UNATTENDED_OBJECT_CANDIDATE": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "F1": 1.0
+    }
+  },
+  "confusion": {
+    "NONE -> NONE": 7,
+    "UNATTENDED_OBJECT_CANDIDATE -> UNATTENDED_OBJECT_CANDIDATE": 1,
+    "PERIMETER_BREACH -> PERIMETER_BREACH": 1,
+    "POSSIBLE_WEAPON -> POSSIBLE_WEAPON": 1
+  },
+  "negative_simulated_seconds": 70,
+  "false_alarms_per_simulated_hour": 0.0,
+  "limitations": "Artificial boxes and short scripted durations verify gates only. No real-world false-alarm rate, ownership, carrying or intent is measured."
+}
