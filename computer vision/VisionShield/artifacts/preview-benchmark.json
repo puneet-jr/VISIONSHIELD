@@ -1,8 +1,8 @@
 {
   "backend": "onnx-cpu",
-  "preview_fps": 21.6,
-  "inference_fps": 5.2,
-  "preview_age_ms": 16.9,
-  "inference_ms": 186.2,
+  "preview_fps": 20.8,
+  "inference_fps": 4.0,
+  "preview_age_ms": 36.6,
+  "inference_ms": 241.7,
   "no_server_started": true
 }

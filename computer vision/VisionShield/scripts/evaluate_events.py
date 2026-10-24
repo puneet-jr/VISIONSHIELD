@@ -38,12 +38,12 @@ def main():
         "normal": None,
         "bag_no_zone": None,
         "bag_monitored": "UNATTENDED_OBJECT_CANDIDATE",
-        "zone_brief": None,
+        "zone_brief": "PERIMETER_BREACH",
         "zone_sustained": "PERIMETER_BREACH",
         "knife_low_confidence": None,
         "knife_isolated": None,
         "knife_persistent": "POSSIBLE_WEAPON",
-        "knife_far_from_person": None,
+        "knife_far_from_person": "POSSIBLE_WEAPON",
         "bag_with_nearby_person": None,
     }
     for scenario, expected in scenarios.items():

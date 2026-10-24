@@ -1,0 +1,187 @@
+{
+  "dataset": "Mall, same fixed 24/2000 frames as body detector baseline",
+  "model": "v8s-head publisher pretrained, local ONNX",
+  "confidence": 0.35,
+  "trained_locally": false,
+  "sample_size": 24,
+  "mae": 25.833333333333332,
+  "rmse": 26.627053911388696,
+  "bias": -25.833333333333332,
+  "body_baseline_mae": 18.875,
+  "blank_false_detections": 0,
+  "samples": [
+    {
+      "frame": 1,
+      "annotated_heads": 29,
+      "detected_heads": 5,
+      "error": -24,
+      "inference_ms": 198.9
+    },
+    {
+      "frame": 87,
+      "annotated_heads": 16,
+      "detected_heads": 5,
+      "error": -11,
+      "inference_ms": 181.3
+    },
+    {
+      "frame": 174,
+      "annotated_heads": 18,
+      "detected_heads": 3,
+      "error": -15,
+      "inference_ms": 179.0
+    },
+    {
+      "frame": 261,
+      "annotated_heads": 23,
+      "detected_heads": 3,
+      "error": -20,
+      "inference_ms": 181.2
+    },
+    {
+      "frame": 348,
+      "annotated_heads": 31,
+      "detected_heads": 2,
+      "error": -29,
+      "inference_ms": 175.7
+    },
+    {
+      "frame": 435,
+      "annotated_heads": 43,
+      "detected_heads": 8,
+      "error": -35,
+      "inference_ms": 179.4
+    },
+    {
+      "frame": 522,
+      "annotated_heads": 33,
+      "detected_heads": 7,
+      "error": -26,
+      "inference_ms": 178.7
+    },
+    {
+      "frame": 609,
+      "annotated_heads": 40,
+      "detected_heads": 5,
+      "error": -35,
+      "inference_ms": 181.5
+    },
+    {
+      "frame": 696,
+      "annotated_heads": 32,
+      "detected_heads": 4,
+      "error": -28,
+      "inference_ms": 172.9
+    },
+    {
+      "frame": 783,
+      "annotated_heads": 36,
+      "detected_heads": 8,
+      "error": -28,
+      "inference_ms": 174.4
+    },
+    {
+      "frame": 870,
+      "annotated_heads": 35,
+      "detected_heads": 5,
+      "error": -30,
+      "inference_ms": 172.2
+    },
+    {
+      "frame": 957,
+      "annotated_heads": 45,
+      "detected_heads": 3,
+      "error": -42,
+      "inference_ms": 181.3
+    },
+    {
+      "frame": 1043,
+      "annotated_heads": 31,
+      "detected_heads": 10,
+      "error": -21,
+      "inference_ms": 185.7
+    },
+    {
+      "frame": 1130,
+      "annotated_heads": 30,
+      "detected_heads": 4,
+      "error": -26,
+      "inference_ms": 192.0
+    },
+    {
+      "frame": 1217,
+      "annotated_heads": 23,
+      "detected_heads": 2,
+      "error": -21,
+      "inference_ms": 178.1
+    },
+    {
+      "frame": 1304,
+      "annotated_heads": 27,
+      "detected_heads": 4,
+      "error": -23,
+      "inference_ms": 169.6
+    },
+    {
+      "frame": 1391,
+      "annotated_heads": 30,
+      "detected_heads": 2,
+      "error": -28,
+      "inference_ms": 168.1
+    },
+    {
+      "frame": 1478,
+      "annotated_heads": 26,
+      "detected_heads": 3,
+      "error": -23,
+      "inference_ms": 177.3
+    },
+    {
+      "frame": 1565,
+      "annotated_heads": 33,
+      "detected_heads": 9,
+      "error": -24,
+      "inference_ms": 188.8
+    },
+    {
+      "frame": 1652,
+      "annotated_heads": 47,
+      "detected_heads": 15,
+      "error": -32,
+      "inference_ms": 204.4
+    },
+    {
+      "frame": 1739,
+      "annotated_heads": 30,
+      "detected_heads": 5,
+      "error": -25,
+      "inference_ms": 225.9
+    },
+    {
+      "frame": 1826,
+      "annotated_heads": 32,
+      "detected_heads": 9,
+      "error": -23,
+      "inference_ms": 219.1
+    },
+    {
+      "frame": 1913,
+      "annotated_heads": 35,
+      "detected_heads": 5,
+      "error": -30,
+      "inference_ms": 179.3
+    },
+    {
+      "frame": 2000,
+      "annotated_heads": 26,
+      "detected_heads": 5,
+      "error": -21,
+      "inference_ms": 179.2
+    }
+  ],
+  "limitations": [
+    "Small single-scene diagnostic, not held-out multi-scene validation.",
+    "Publisher training dataset identities/splits undisclosed; Mall training overlap cannot be excluded.",
+    "Not stampede prediction; head centres are image coordinates, not feet on a ground plane."
+  ]
+}

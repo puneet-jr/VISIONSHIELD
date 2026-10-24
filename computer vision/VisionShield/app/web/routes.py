@@ -17,7 +17,7 @@ from pathlib import Path
 from io import BytesIO
 import secrets
 import qrcode
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from fastapi import HTTPException, Query
 from app.config import config
 import cv2
@@ -34,6 +34,8 @@ import re
 import base64
 from app.core.security import role, origin_allowed, pair_allowed
 from app.core.observability import metrics
+from app.core.cameras import camera_registry
+from app.core.streams import streams
 
 from app.ingestion.video_stream import video_manager
 from app.engine.pipeline import pipeline
@@ -81,10 +83,12 @@ async def serve_phone_camera(request: Request):
 # --- Video Ingestion & MJPEG Streaming ---
 
 
-async def generate_mjpeg():
+async def generate_mjpeg(request=None):
     """Generator yielding multipart JPEG frames for the live dashboard player."""
     last_id = -1
     while True:
+        if request is not None and await request.is_disconnected():
+            return
         with video_manager.lock:
             jpeg, frame_id = video_manager.jpeg, video_manager.jpeg_id
         if jpeg and frame_id != last_id:
@@ -94,15 +98,15 @@ async def generate_mjpeg():
 
 
 @router.get("/video_feed")
-async def video_feed():
+async def video_feed(request: Request):
     """MJPEG Live Annotated Surveillance Stream."""
     return StreamingResponse(
-        generate_mjpeg(), media_type="multipart/x-mixed-replace; boundary=frame"
+        generate_mjpeg(request), media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 @router.post("/api/upload_frame")
-async def upload_frame(file: UploadFile = File(...)):
+async def upload_frame(request: Request, file: UploadFile = File(...)):
     """Receives camera frames uploaded directly by mobile browser."""
     contents = await file.read(512_001)
     if len(contents) > 512_000:
@@ -110,7 +114,11 @@ async def upload_frame(file: UploadFile = File(...)):
     np_arr = np.frombuffer(contents, np.uint8)
     frame = await asyncio.to_thread(cv2.imdecode, np_arr, cv2.IMREAD_COLOR)
     if frame is not None:
-        await asyncio.to_thread(video_manager.push_phone_frame, frame)
+        context = streams.for_device(request.cookies.get("vs_device", ""))
+        if role(request) == "camera" and (not context or not context.busy):
+            raise HTTPException(409, "Start this paired phone camera before uploading frames")
+        target = context.video if context else video_manager
+        await asyncio.to_thread(target.push_phone_frame, frame, target.generation)
         return {"status": "ok"}
     raise HTTPException(422, "Invalid image")
 
@@ -131,6 +139,12 @@ async def get_system_info():
         "detection_counts": pipeline.last_detection_counts,
         "source_path": video_manager.source_path,
         "camera_id": video_manager.camera_id,
+        "camera": camera_registry.get(video_manager.camera_id),
+        "pose": pipeline.pose.information(),
+        "zone_immediate_warning": config.ZONE_IMMEDIATE_WARNING,
+        "frame_dimensions": list(video_manager.latest_frame.shape[:2][::-1])
+        if video_manager.latest_frame is not None
+        else None,
         "source_error": video_manager.source_error,
         "recorded": video_manager.recorded,
         "camera_online": video_manager.camera_online
@@ -169,6 +183,7 @@ async def change_source(payload: Dict[str, Any]):
             raise HTTPException(422, str(exc)) from exc
     try:
         await asyncio.to_thread(video_manager.start, source)
+        pipeline.zone_source = None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return {"status": "ok", "source": source}
@@ -193,9 +208,13 @@ async def update_zones(payload: Dict[str, Any]):
 
     def apply():
         with pipeline.lock:
-            if pipeline.geofence.source != video_manager.source_path:
-                pipeline.geofence.select_source(video_manager.source_path)
+            source = pipeline.zone_source or video_manager.source_path
+            if pipeline.geofence.source != source:
+                pipeline.geofence.select_source(source)
             pipeline.geofence.replace_zones(validated)
+            pipeline.crowd.history.clear()
+            pipeline.crowd.pending.clear()
+            pipeline.crowd.zone_metrics = []
 
     await asyncio.to_thread(apply)
     return {"status": "ok", "zones_count": len(validated)}
@@ -207,8 +226,39 @@ class ZonePayload(BaseModel):
     points: list[tuple[float, float]] = Field(min_length=3, max_length=20)
     severity: str = Field(default="HIGH", pattern="^(HIGH|MEDIUM|LOW)$")
     color: str = Field(default="#7dd3fc", pattern="^#[0-9a-fA-F]{6}$")
-    purpose: Literal["restricted", "object_monitor"] = "restricted"
+    purpose: Literal[
+        "restricted", "object_monitor", "crowd_monitor", "river_edge", "pedestrian_only"
+    ] = "restricted"
     dwell_seconds: float = Field(default=1.5, ge=0.5, le=300)
+    max_capacity: int | None = Field(default=None, ge=1, le=100000)
+    area_m2: float | None = Field(default=None, gt=0, le=10000000, allow_inf_nan=False)
+    density_threshold: float | None = Field(default=None, gt=0, le=20, allow_inf_nan=False)
+    minimum_spacing_m: float | None = Field(default=None, gt=0, le=100, allow_inf_nan=False)
+    ground_width_m: float | None = Field(default=None, gt=0, le=10000, allow_inf_nan=False)
+    ground_height_m: float | None = Field(default=None, gt=0, le=10000, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def calibrated_policy(self):
+        if bool(self.ground_width_m) != bool(self.ground_height_m):
+            raise ValueError("Supply both measured ground dimensions")
+        if self.ground_width_m:
+            if len(self.points) != 4 or not cv2.isContourConvex(
+                np.array(self.points, dtype=np.float32)
+            ):
+                raise ValueError(
+                    "Ground calibration requires four ordered corners of a measured rectangle"
+                )
+            if (
+                self.area_m2
+                and abs(self.area_m2 - self.ground_width_m * self.ground_height_m)
+                > 0.01 * self.area_m2
+            ):
+                raise ValueError("Area and measured rectangle dimensions disagree")
+        if self.minimum_spacing_m and not self.ground_width_m:
+            raise ValueError("Metre spacing requires a measured ground quadrilateral")
+        if self.density_threshold and not (self.area_m2 or self.ground_width_m):
+            raise ValueError("Density requires measured zone area")
+        return self
 
     @field_validator("points")
     @classmethod
@@ -302,7 +352,9 @@ class ReviewPayload(BaseModel):
 
 
 @router.patch("/api/events/{event_id}")
-def review_event(event_id: str, payload: ReviewPayload):
+def review_event(event_id: str, payload: ReviewPayload, request: Request):
+    if role(request) == "guard" and payload.status != "acknowledged":
+        raise HTTPException(403, "Guards may acknowledge events only")
     if not db.review_event(event_id, payload.status):
         raise HTTPException(404, "Event not found")
     return db.get_event(event_id)
@@ -323,6 +375,15 @@ def get_incidents(limit: int = Query(10, ge=1, le=50)):
 # --- WebSocket Channel ---
 
 
+async def watch_disconnect(websocket):
+    try:
+        while True:
+            if (await websocket.receive())["type"] == "websocket.disconnect":
+                return
+    except (WebSocketDisconnect, RuntimeError):
+        return
+
+
 @router.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket):
     """Sub-millisecond WebSocket channel for telemetry, alerts, and AI dossiers."""
@@ -331,17 +392,25 @@ async def websocket_events(websocket: WebSocket):
         return
     await websocket.accept()
     queue = event_hub.subscribe()
+    disconnected = asyncio.create_task(watch_disconnect(websocket))
+    pending_event = None
 
     # Send initial snapshot of recent events
     recent = event_hub.get_recent_events()
     try:
         for ev in recent:
             await websocket.send_text(json.dumps({**ev, "replay": True}))
-        while True:
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=20)
-                await websocket.send_json(event)
-            except asyncio.TimeoutError:
+        pending_event = asyncio.create_task(queue.get())
+        while not disconnected.done():
+            done, _ = await asyncio.wait(
+                {pending_event, disconnected}, timeout=20, return_when=asyncio.FIRST_COMPLETED
+            )
+            if disconnected in done:
+                break
+            if pending_event in done:
+                await websocket.send_json(pending_event.result())
+                pending_event = asyncio.create_task(queue.get())
+            else:
                 await websocket.send_json({"type": "HEARTBEAT"})
     except WebSocketDisconnect:
         event_hub.unsubscribe(queue)
@@ -350,14 +419,22 @@ async def websocket_events(websocket: WebSocket):
         event_hub.unsubscribe(queue)
     finally:
         event_hub.unsubscribe(queue)
+        tasks = [disconnected] + ([pending_event] if pending_event else [])
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def authorized(connection):
-    return role(connection) == "operator" and origin_allowed(connection)
+    return role(connection) in {"operator", "guard"} and origin_allowed(connection)
 
 
 def phone_url(request, access="camera"):
     base = config.PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
+    if not base.startswith('https://'):
+        raise HTTPException(503,'Secure phone link is starting or unavailable. Run python run.py (HTTPS tunnel is enabled by default), then retry Connect phone. Localhost links cannot connect other devices.')
+    if access == "guard":
+        return base + "/guard#token=" + config.GUARD_TOKEN
     return base + (
         "/login#token=" + config.ACCESS_TOKEN
         if access == "operator"
@@ -383,6 +460,8 @@ async def pair(request: Request):
         if secrets.compare_digest(token, config.ACCESS_TOKEN)
         else "camera"
         if secrets.compare_digest(token, config.CAMERA_TOKEN)
+        else "guard"
+        if secrets.compare_digest(token, config.GUARD_TOKEN)
         else None
     )
     if not access:
@@ -410,7 +489,7 @@ async def pair(request: Request):
 
 
 @router.get("/api/connection")
-def connection_info(request: Request, access: Literal["camera", "operator"] = "camera"):
+def connection_info(request: Request, access: Literal["camera", "operator", "guard"] = "camera"):
     return {
         "phone_url": phone_url(request, access),
         "remote_ready": bool(config.PUBLIC_BASE_URL),
@@ -419,7 +498,7 @@ def connection_info(request: Request, access: Literal["camera", "operator"] = "c
 
 
 @router.get("/api/qr")
-def pairing_qr(request: Request, access: Literal["camera", "operator"] = "camera"):
+def pairing_qr(request: Request, access: Literal["camera", "operator", "guard"] = "camera"):
     output = BytesIO()
     qrcode.make(phone_url(request, access)).save(output, format="PNG")
     return Response(
@@ -441,57 +520,60 @@ async def camera_socket(websocket: WebSocket):
         await websocket.close(code=1008)
         return
     await websocket.accept()
-    # A single sender owns capture at a time. No unbounded queue of stale frames.
-    if camera_lock.locked():
-        await websocket.close(code=1013, reason="Another phone is streaming")
+    device = websocket.cookies.get("vs_device", "")
+    if not re.fullmatch("[0-9a-f]{32}", device):
+        device = uuid4().hex
+    try:
+        context = streams.claim(device)
+    except ValueError as exc:
+        await websocket.close(code=1013, reason=str(exc))
         return
-    async with camera_lock:
-        await asyncio.to_thread(video_manager.start, "phone_upload")
-        device = websocket.cookies.get("vs_device", "")
-        video_manager.camera_id = "phone:" + (
-            device if re.fullmatch("[0-9a-f]{32}", device) else uuid4().hex
-        )
-        stream_generation = video_manager.generation
-        try:
-            while True:
-                data = await asyncio.wait_for(websocket.receive_bytes(), timeout=30)
-                if video_manager.generation != stream_generation:
-                    await websocket.close(code=4000, reason="Camera source changed")
-                    return
-                if len(data) > 512_000:
-                    await websocket.close(code=1009)
-                    return
-                captured_at = None
-                if data[:4] == b"VSC1":
-                    import struct
+    try:
+        await asyncio.to_thread(context.video.start, "phone_upload")
+    except Exception:
+        streams.release(context, context.video.generation)
+        raise
+    context.video.camera_id = "phone:" + device
+    stream_generation = context.video.generation
+    try:
+        while True:
+            data = await asyncio.wait_for(websocket.receive_bytes(), timeout=30)
+            if context.video.generation != stream_generation:
+                await websocket.close(code=4000, reason="Camera source changed")
+                return
+            if len(data) > 512_000:
+                await websocket.close(code=1009)
+                return
+            captured_at = None
+            if data[:4] == b"VSC1":
+                import struct
 
-                    if len(data) < 12:
-                        continue
-                    captured_at = struct.unpack(">d", data[4:12])[0]
-                    if not time.time() - 30 <= captured_at <= time.time() + 1:
-                        captured_at = None
-                    data = data[12:]
-                frame = await asyncio.to_thread(
-                    cv2.imdecode, np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR
-                )
-                if frame is None or max(frame.shape[:2]) > 1920:
-                    await websocket.send_json({"error": "Invalid or oversized image"})
+                if len(data) < 12:
                     continue
-                accepted = await asyncio.to_thread(
-                    video_manager.push_phone_frame,
-                    frame,
-                    stream_generation,
-                    captured_at,
-                )
-                if not accepted:
-                    await websocket.close(code=4000, reason="Camera source changed")
-                    return
-                await websocket.send_json({"ok": True})
-        except (WebSocketDisconnect, asyncio.TimeoutError):
-            pass
-        finally:
-            if video_manager.generation == stream_generation:
-                video_manager.camera_online = False
+                captured_at = struct.unpack(">d", data[4:12])[0]
+                if not time.time() - 30 <= captured_at <= time.time() + 1:
+                    captured_at = None
+                data = data[12:]
+            frame = await asyncio.to_thread(
+                cv2.imdecode, np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR
+            )
+            if frame is None or max(frame.shape[:2]) > 1920:
+                await websocket.send_json({"error": "Invalid or oversized image"})
+                continue
+            accepted = await asyncio.to_thread(
+                context.video.push_phone_frame,
+                frame,
+                stream_generation,
+                captured_at,
+            )
+            if not accepted:
+                await websocket.close(code=4000, reason="Camera source changed")
+                return
+            await websocket.send_json({"ok": True})
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
+    finally:
+        streams.release(context, stream_generation)
 
 
 camera_lock = asyncio.Lock()
@@ -519,9 +601,10 @@ async def live_telemetry():
 
 
 def current_zones():
-    if pipeline.geofence.source == video_manager.source_path:
+    source = pipeline.zone_source or video_manager.source_path
+    if pipeline.geofence.source == source:
         return pipeline.geofence.get_zones_dict()
-    return pipeline.geofence.saved.get(video_manager.source_path, [])
+    return pipeline.geofence.saved.get(source, [])
 
 
 @router.get("/health/live")
@@ -547,17 +630,96 @@ def server_time():
 
 
 @router.get("/api/camera/status")
-def camera_status():
+def camera_status(request: Request):
+    context = streams.for_device(request.cookies.get("vs_device", ""))
+    video = context.video if context else video_manager
     return {
-        "camera_online": video_manager.camera_online,
-        "source_error": video_manager.source_error,
-        "camera_id": video_manager.camera_id,
+        "camera_online": video.camera_online,
+        "source_error": video.source_error,
+        "camera_id": video.camera_id,
     }
+
+
+class CameraLocation(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    accuracy_m: float | None = Field(default=None, ge=0, le=100000, allow_inf_nan=False)
+
+
+class CameraSettings(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    location: CameraLocation | None = None
+    metres_per_pixel: float | None = Field(default=None, gt=0, le=100, allow_inf_nan=False)
+    reference_width: int | None = Field(default=None, ge=32, le=7680)
+    reference_height: int | None = Field(default=None, ge=32, le=7680)
+
+
+@router.get("/api/camera/settings")
+def camera_settings():
+    return camera_registry.get(video_manager.camera_id)
+
+
+@router.put("/api/camera/settings")
+def update_camera_settings(payload: CameraSettings):
+    if payload.metres_per_pixel and not (payload.reference_width and payload.reference_height):
+        raise HTTPException(422, "Scale needs the reference frame dimensions")
+    values = payload.model_dump()
+    if values["location"] is not None:
+        values["location"].update(source="operator_entered", timestamp=time.time())
+    return camera_registry.update(video_manager.camera_id, values)
+
+
+@router.post("/api/camera/location")
+def camera_gps(request: Request, payload: CameraLocation):
+    context = streams.for_device(request.cookies.get("vs_device", ""))
+    video = context.video if context else video_manager
+    if video.source_type != "phone_upload" or not video.camera_online:
+        raise HTTPException(409, "Start the phone camera before sharing its GPS")
+    device = request.cookies.get("vs_device", "")
+    if role(request) == "camera" and video.camera_id != "phone:" + device:
+        raise HTTPException(403, "GPS must belong to the active paired camera")
+    camera_registry.update(
+        video.camera_id,
+        {
+            "location": {
+                **payload.model_dump(),
+                "source": "camera_browser_gps",
+                "timestamp": time.time(),
+            }
+        },
+        persist=False,
+    )
+    return {
+        "status": "camera_location_updated",
+        "retention": "session memory; event evidence may include this camera location",
+    }
+
+
+class PersonAnnotation(BaseModel):
+    label: Literal["man", "woman", "unspecified"]
+
+
+@router.patch("/api/person-annotations/{person_id}")
+def annotate_person(person_id: str, payload: PersonAnnotation):
+    with pipeline.lock:
+        if person_id not in pipeline.identities.people:
+            raise HTTPException(404, "Anonymous person is no longer in this session")
+        annotation = {
+            "label": None if payload.label == "unspecified" else payload.label,
+            "source": "operator_entered; not visually inferred",
+        }
+        pipeline.person_annotations[person_id] = annotation
+    return annotation
 
 
 @router.get("/api/metrics")
 def live_metrics():
     return metrics.snapshot(video_manager, pipeline)
+
+
+@router.get("/api/summary")
+def dashboard_summary():
+    return db.event_summary()
 
 
 class DisplayMetric(BaseModel):
@@ -582,6 +744,7 @@ def insights():
 
     return {
         "model": model_information(pipeline.detector),
+        "pose": pipeline.pose.information(),
         "pipeline": dict(pipeline.stage_times),
         "metrics": metrics.snapshot(video_manager, pipeline),
         "identities": pipeline.identities.public_history()[-50:],
@@ -598,6 +761,10 @@ def insights():
             "bag_seconds": config.ABANDONED_DWELL_SECONDS,
             "bag_requires_monitor_zone": config.REQUIRE_BAG_MONITOR_ZONE,
             "zone_seconds": config.ZONE_DWELL_SECONDS,
+            "zone_immediate_warning": config.ZONE_IMMEDIATE_WARNING,
+            "zone_classes": [config.PERSON_CLASS, *config.ANIMAL_CLASSES],
+            "knife_immediate_visual_warning": config.KNIFE_IMMEDIATE_WARNING,
+            "knife_requires_person": config.KNIFE_REQUIRE_PERSON,
             "duplicate_cooldown_seconds": config.ALERT_COOLDOWN_SECONDS,
         },
     }
@@ -685,8 +852,9 @@ async def preview_socket(websocket: WebSocket):
         return
     await websocket.accept()
     last = -1
+    disconnected = asyncio.create_task(watch_disconnect(websocket))
     try:
-        while True:
+        while not disconnected.done():
             with video_manager.lock:
                 jpeg, identifier, metadata = (
                     video_manager.jpeg,
@@ -700,3 +868,6 @@ async def preview_socket(websocket: WebSocket):
             await asyncio.sleep(0.01)
     except (WebSocketDisconnect, RuntimeError):
         pass
+    finally:
+        disconnected.cancel()
+        await asyncio.gather(disconnected, return_exceptions=True)

@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "desktop": {
+    "width": 1440,
+    "scroll": 1425,
+    "cameras": 2,
+    "warnings": "1",
+    "errors": ""
+  },
+  "mobile": {
+    "width": 390,
+    "scroll": 390
+  },
+  "zone_form": "per-camera save and real detection capacity warning passed",
+  "crowd_overlay": "default dot map draws no label rectangles; detailed mode restores labels",
+  "fixture": "Two separate socket sessions streaming the same static official bus photo; not physical phones",
+  "errors": []
+}

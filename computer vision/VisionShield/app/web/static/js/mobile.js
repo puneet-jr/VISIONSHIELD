@@ -11,7 +11,8 @@ async function syncClock() {
 const status = message => { $('status').textContent = message; };
 const setControls = active => {
     $('start').disabled = active; $('stop').disabled = !active;
-    $('facing').disabled = active; $('quality').disabled = active;
+    $('facing').disabled = false; $('quality').disabled = active;
+    $('shareLocation').disabled = !active;
 };
 
 async function pair() {
@@ -31,8 +32,9 @@ function pump() {
     if (encoding || pending.length >= 3 || active.bufferedAmount > 220000) return;
     const video = $('preview'), canvas = $('capture');
     if (!video.videoWidth) return;
-    canvas.width = Math.min(Number($('quality').value), video.videoWidth);
-    canvas.height = Math.round(canvas.width * video.videoHeight/video.videoWidth);
+    const targetWidth = Math.min(Number($('quality').value), video.videoWidth);
+    const targetHeight = Math.round(targetWidth * video.videoHeight/video.videoWidth);
+    if(canvas.width!==targetWidth||canvas.height!==targetHeight){canvas.width=targetWidth;canvas.height=targetHeight;}
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     const capturedAt=(Date.now()+clockOffset)/1000;
     encoding = true;
@@ -72,7 +74,7 @@ function connect() {
         if (!running || socket !== active) return;
         clearTimeout(pumpTimer); pending = [];
         if ([1008,1013,4000].includes(event.code)) {
-            const message = event.code === 4000 ? 'Source changed on dashboard. Camera stopped.' : event.code === 1013 ? 'Another phone is connected. Stop it first.' : 'Pairing expired. Scan the QR code again.';
+            const message = event.code === 4000 ? 'Source changed on dashboard. Restart this camera.' : event.code === 1013 ? (event.reason || 'This browser is already streaming, or the camera limit is reached. Close duplicate tabs and retry.') : 'Pairing expired. Scan the QR code again.';
             stop().then(() => status(message)); return;
         }
         status('Reconnecting...');
@@ -103,5 +105,17 @@ $('start').onclick = async () => {
     } catch (error) { await stop(); status(error.message); }
 };
 $('stop').onclick = stop;
+$('facing').onchange=async()=>{if(running){await stop();setTimeout(()=>$('start').click(),300);}};
+$('shareLocation').onclick=()=>{
+    if(!running)return;
+    if(!navigator.geolocation){$('locationStatus').textContent='GPS is unavailable in this browser.';return;}
+    $('locationStatus').textContent='Requesting camera-device location permission…';
+    navigator.geolocation.getCurrentPosition(async position=>{
+        if(!running)return;
+        const payload={latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy_m:position.coords.accuracy};
+        try{const response=await fetch('/api/camera/location',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!response.ok)throw Error('Camera GPS update rejected ('+response.status+'). Restart streaming or re-pair.');$('locationStatus').textContent=`Camera GPS shared: ${payload.latitude.toFixed(6)}, ${payload.longitude.toFixed(6)} · accuracy ±${Math.round(payload.accuracy_m)} m. Use this button again after moving.`;}
+        catch(error){$('locationStatus').textContent=error.message;}
+    },error=>{$('locationStatus').textContent='GPS not shared: '+error.message+'. Video continues without location.';},{enableHighAccuracy:true,timeout:15000,maximumAge:10000});
+};
 window.addEventListener('pagehide', stop);
 if (!isSecureContext) status('HTTPS required: use the secure pairing URL from your dashboard.');

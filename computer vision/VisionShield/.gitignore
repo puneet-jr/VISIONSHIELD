@@ -5,5 +5,7 @@ data/
 tools/*.exe
 .env
 artifacts/browser-profile/
+artifacts/crowd-browser-profile/
 datasets/
 runs/
+yolo11n-pose.pt

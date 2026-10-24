@@ -1,0 +1,130 @@
+{
+  "checkpoint": "yolo11n-pose.pt",
+  "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+  "source": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt",
+  "training": "official vendor COCO-keypoints pretrained; no local pose training",
+  "license": "Ultralytics AGPL-3.0 or commercial terms; check sample image rights",
+  "posture_method": "17 COCO keypoints + confidence-gated hip/knee angle rules; no trained sitting/standing action classifier",
+  "input_size": 320,
+  "images": [
+    {
+      "image": "pose-smoke-bus.jpg",
+      "postures": [
+        "standing",
+        "standing",
+        "standing"
+      ],
+      "confidence": [
+        0.97,
+        0.947,
+        0.436
+      ],
+      "pose_inference_ms": 5588.5
+    },
+    {
+      "image": "000000000139.jpg",
+      "postures": [
+        "standing"
+      ],
+      "confidence": [
+        0.779
+      ],
+      "pose_inference_ms": 113.9
+    },
+    {
+      "image": "000000000285.jpg",
+      "postures": [],
+      "confidence": [],
+      "pose_inference_ms": 143.3
+    },
+    {
+      "image": "000000000632.jpg",
+      "postures": [],
+      "confidence": [],
+      "pose_inference_ms": 92.0
+    },
+    {
+      "image": "000000000724.jpg",
+      "postures": [],
+      "confidence": [],
+      "pose_inference_ms": 54.9
+    },
+    {
+      "image": "000000000776.jpg",
+      "postures": [],
+      "confidence": [],
+      "pose_inference_ms": 80.4
+    },
+    {
+      "image": "000000000785.jpg",
+      "postures": [
+        "unknown"
+      ],
+      "confidence": [
+        0.0
+      ],
+      "pose_inference_ms": 40.9
+    },
+    {
+      "image": "000000000802.jpg",
+      "postures": [],
+      "confidence": [],
+      "pose_inference_ms": 38.7
+    },
+    {
+      "image": "000000000872.jpg",
+      "postures": [
+        "unknown",
+        "standing"
+      ],
+      "confidence": [
+        0.991,
+        0.766
+      ],
+      "pose_inference_ms": 57.6
+    },
+    {
+      "image": "000000000885.jpg",
+      "postures": [
+        "standing",
+        "unknown",
+        "unknown"
+      ],
+      "confidence": [
+        0.676,
+        0.0,
+        0.0
+      ],
+      "pose_inference_ms": 51.0
+    },
+    {
+      "image": "000000001000.jpg",
+      "postures": [
+        "unknown",
+        "standing",
+        "standing",
+        "unknown",
+        "standing",
+        "standing",
+        "standing",
+        "standing"
+      ],
+      "confidence": [
+        0.0,
+        0.943,
+        0.987,
+        0.0,
+        0.976,
+        0.989,
+        0.965,
+        0.472
+      ],
+      "pose_inference_ms": 51.6
+    }
+  ],
+  "predicted_posture_counts": {
+    "standing": 12,
+    "unknown": 6
+  },
+  "scope": "Actual model inference smoke check. No posture ground truth or posture accuracy measured. Temporal display smoothing is tested separately."
+}

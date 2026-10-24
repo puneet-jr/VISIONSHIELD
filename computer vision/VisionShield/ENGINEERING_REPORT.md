@@ -1,4 +1,29 @@
+> Latest crowd implementation, actual dataset acquisition, frozen-model Mall counting results and multi-camera verification are documented in [CROWD_GUIDE.md](CROWD_GUIDE.md). No supplied crowd dataset is claimed as promoted trained weights or a stampede prediction model.
+
 # Engineering audit and validation report
+
+## Current observation-label revision
+
+The following supersedes the earlier baseline's zone/knife presentation policy. Current regression suite: **67 tests pass**. All 10 pages of the supplied PHOTOS OF UI PDF were visually reviewed, and its supported observation/flagging patterns were applied.
+
+Reference mapping: pages 1/5/6/8 supply the polygon and red intrusion/alert-detail presentation; pages 2/4/7/10 supply class-coloured boxes, IDs, foot markers and dashboard counts; page 3 supplies measured person/bag proximity connectors and stationary/moving labels; page 9 supplies clothing/object colour swatches. The alert panel shows actual camera/time/class/detection confidence/visibility duration, and the occupancy sparkline contains bounded session observations. Events-today counts query SQLite with UTC day boundaries, including migrated legacy timestamps. Camera-only clients cannot read this summary. No PDF image or already-drawn label is used as a model-training target or an inference result.
+
+Scope limits remain explicit: up to four camera contexts by default with per-zone capacity/density review rules; no learned helmet/vest/hat compliance and no verified ownership/identity. The PDF's example camera counts, confidence values and system statistics were not copied as live data. Derived UI styling is applied to this project's actual outputs.
+
+- Added app/engine/posture.py: actual official YOLO11n-pose pretrained COCO keypoints, low-rate one-worker inference, stale/generation guards, confidence-gated joint-angle sitting/standing estimates and two-result display smoothing. Unknown is used when joints/geometry are ambiguous. No local pose/action training. Downloaded model SHA-256: 869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0. setup.ps1 fetches it; the weight is Git-ignored.
+- Added app/engine/attributes.py: upper/lower clothing and object crop colour estimates. Added explicit pixel speed/x-y velocity and optional camera scale; reacquisition gaps reset speed validity. Scalar reference-plane calibration is approximate and not perspective-correct.
+- Added app/core/cameras.py and role-protected settings/GPS APIs. Coordinates are camera installation entries or an explicitly shared browser GPS position, never inferred from the server/IP. GPS is session memory; evidence may retain the camera location. Tests verify device binding and camera/operator separation.
+- Restricted zones now flag detected people and supported animals red immediately. ZONE_IMMEDIATE_WARNING=false retains the earlier dwell mode. Saved events explain immediate versus temporal confirmation and the detected class.
+- Visible knives get immediate red DANGER wording, explicitly unconfirmed; saved knife events retain confidence/time gates. A person is optional by default (KNIFE_REQUIRE_PERSON=false). This is a warning policy, not evidence of malicious intent or improved knife recall.
+- Bag warnings explicitly read ABANDONED BAG (CANDIDATE) — CHECK. Existing stationarity/monitor-zone/association rules remain.
+- Gender is not visually inferred. Optional session labels are operator-entered only. No demographic model was added.
+- The dashboard adds an observation table, pose/colour/motion labels, immediate warning banner, camera location/calibration controls and manual annotation. Technical skeleton arrays are not shown as the default selected-person summary.
+
+Actual model smoke check on 11 images produced 12 standing predictions and 6 unknown predictions; there was no posture ground truth, so this is not accuracy evidence. Sitting geometry and occluded/unknown cases are tested with explicit synthetic keypoints. See artifacts/pose-verification.json and scripts/verify_pose.py. The [official YOLO11 documentation](https://docs.ultralytics.com/models/yolo11/) and [COCO pose documentation](https://docs.ultralytics.com/datasets/pose/coco/) describe the pretrained keypoint model; the sitting/standing rules are this application's estimates.
+
+Actual Chromium testing passed posture/colour/pixel-speed display on an official static bus example photo, immediate red restricted-zone warning, manual annotation save/clear, and a simulated browser GPS submission, along with existing controls/evidence/mobile/recorded flows. No JS exceptions or horizontal overflow. Physical phone GPS permission and actual sitting/standing scene accuracy still require device rehearsal. See artifacts/browser-verification.json and dashboard-attributes.png. The broader software/ML limitations below still apply; prior measurements are historical baselines, not promises for this added enrichment workload.
+
+Latest offline preview isolation check during other verification activity: 20.8 preview FPS, 4.0 inference FPS, 241.7 ms last inference at 640x480 input / YOLO11s 640 ONNX CPU. This blank-frame test does not activate pose enrichment and is not a controlled comparison against earlier measurements. Pose smoke warm calls were approximately 39–143 ms at 320 px; the first predictor call took about 5.6 seconds, which the live app runs in the separate bounded worker.
 
 ## Audit before this revision
 
@@ -34,7 +59,7 @@ flowchart LR
     A -. optional, off by default .-> N[Offline or Gemini summary]
 ```
 
-Capture, preview encoding, inference and optional summaries are separated. Capture/inference use latest slots, not unbounded queues. The phone permits at most three unacknowledged frames and skips captures under congestion. The browser keeps one decoding frame and one latest pending frame. The video stage is fixed 16:9; drawing/overlays map to contained image pixels, excluding letterboxing. Only one active source/phone and one application process are supported; do not use multiple Uvicorn workers.
+Capture, preview encoding, inference and optional summaries are separated. Capture/inference use latest slots, not unbounded queues. The phone permits at most three unacknowledged frames and skips captures under congestion. The browser keeps one decoding frame and one latest pending frame. The video stage is fixed 4:3; drawing/overlays map to contained image pixels, excluding letterboxing. One application process supports independent bounded camera contexts through a shared serial inference worker; do not use multiple Uvicorn workers. More cameras share the available analysis FPS.
 
 ## Changes and paths
 

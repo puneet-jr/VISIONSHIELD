@@ -35,7 +35,15 @@ class ObjectDetector:
 
                     self.model = AcceleratedYOLO(self.model_name, config)
                     self.backend = self.model.name
-                    wanted = {"person", "backpack", "handbag", "suitcase", "knife"}
+                    wanted = {
+                        "person",
+                        "backpack",
+                        "handbag",
+                        "suitcase",
+                        "knife",
+                        *config.ANIMAL_CLASSES,
+                        *config.VEHICLE_CLASSES,
+                    }
                     self.class_ids = [
                         i
                         for i, name in self.model.names.items()
@@ -52,7 +60,15 @@ class ObjectDetector:
             torch.set_num_threads(config.CPU_THREADS)
             logger.info(f"Loading YOLO model '{self.model_name}' on device '{self.device}'...")
             self.model = YOLO(self.model_name)
-            wanted = {"person", "backpack", "handbag", "suitcase", "knife"}
+            wanted = {
+                "person",
+                "backpack",
+                "handbag",
+                "suitcase",
+                "knife",
+                *config.ANIMAL_CLASSES,
+                *config.VEHICLE_CLASSES,
+            }
             self.class_ids = [
                 i
                 for i, name in self.model.names.items()
@@ -100,7 +116,7 @@ class ObjectDetector:
                 device=self.device,
                 verbose=False,
                 classes=self.class_ids,
-                max_det=40,
+                max_det=config.MAX_DETECTIONS,
             )
 
             self.error = None

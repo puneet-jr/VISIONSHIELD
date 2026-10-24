@@ -26,6 +26,7 @@ def main():
         help="Start a temporary public HTTPS phone tunnel",
     )
     parser.add_argument("--port", type=int, default=config.PORT)
+    parser.add_argument("--local", action="store_true", help="Disable the default public HTTPS phone tunnel")
     parser.add_argument(
         "--fast",
         action="store_true",
@@ -44,7 +45,7 @@ def main():
     config.PORT = args.port
     os.chdir(ROOT)
     process = None
-    if args.remote:
+    if not args.local:
         binary = shutil.which("cloudflared") or str(ROOT / "tools" / "cloudflared.exe")
         if not Path(binary).exists():
             parser.error("cloudflared is missing. Run setup.ps1 first.")
@@ -96,8 +97,10 @@ def main():
             host=config.HOST,
             port=args.port,
             log_level="info",
+            access_log=config.DEBUG,
             ws_max_size=512_000,
             ws_max_queue=2,
+            timeout_graceful_shutdown=5,
         )
     finally:
         if process:

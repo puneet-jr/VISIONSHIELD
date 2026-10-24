@@ -202,7 +202,11 @@ class VideoStreamManager:
             if recording:
                 return cv2.VideoCapture(str(self.recording_path(source)))
             if source.isdigit() and os.name == "nt":
-                return cv2.VideoCapture(int(source), cv2.CAP_DSHOW)
+                device=cv2.VideoCapture(int(source), cv2.CAP_DSHOW)
+                if not device.isOpened():
+                    device.release()
+                    device=cv2.VideoCapture(int(source),cv2.CAP_MSMF)
+                return device
             return cv2.VideoCapture(int(source) if source.isdigit() else source)
 
         cap = open_capture()

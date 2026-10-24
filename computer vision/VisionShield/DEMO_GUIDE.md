@@ -1,5 +1,7 @@
 # Demo guide
 
+**Crowd monitoring update:** See [CROWD_GUIDE.md](CROWD_GUIDE.md) for multiple cameras, guard QR access, per-camera capacity/density rules, calibration, datasets and measured counting limitations. Open `/guard` for the new camera overview.
+
 Software checks pass, but a physical phone/webcam rehearsal is still necessary on your devices. Red means an elevated review condition under configured rules. The model cannot verify real danger, intent, authorization, ownership or hand contact.
 
 ## Start
@@ -14,23 +16,37 @@ Open http://localhost:8000. Initial state waits for a camera. Select Webcam 0 (t
 ## Laptop and zone rehearsal
 
 1. Fix the camera, use good lighting and close other apps using the webcam. Walk outside configured zones. Ordinary observations should remain green.
-2. Choose a restricted doorway or floor footprint. Name the zone, select **Restricted floor area**, set dwell to 1.5 seconds and click Draw restricted zone. Click 3–20 points in boundary order, then Save. Escape cancels drawing. Remove saved zones clears the selected source's zones.
+2. Choose a restricted doorway or floor footprint. Name the zone, select **Restricted floor area** and click Draw restricted zone. Click 3–20 points in boundary order, then Save. Dwell is disabled in the default immediate-warning mode. Escape cancels drawing. Remove saved zones clears the selected source's zones.
 3. Draw where feet stand: the rule uses the box bottom-centre, not an arm/head overlap. Keep public walkways outside. Crossed edges and degenerate shapes are rejected.
-4. Enter briefly and leave: entry remains pending/amber. Stay for at least two seconds and three processed observations: the zone/person become red and a review event appears. Exit: live warnings clear on a fresh inference. History remains timestamped.
+4. A detected person or supported animal entering the zone turns red immediately and produces **RESTRICTED ZONE — CHECK IMMEDIATELY**. This means the configured zone condition was observed, not verified intent. Exit: live warnings clear on a fresh inference; history remains timestamped. ZONE_IMMEDIATE_WARNING=false restores dwell confirmation when desired.
 5. For bags, create a **Bag monitoring area** around the bag location. Show the person close to the bag for >=1 second and three observations, put the bag down, let it settle and walk away. After six stationary seconds without a nearby associated person, expect a MEDIUM unattended-object candidate. Return nearby to clear it. An unassociated bag can also become a stationary candidate inside the monitor zone, explicitly without ownership evidence. A bag outside this zone does not trigger the rule.
 6. Open an event to inspect evidence, rules, confidence, persistence and uncertainty. Acknowledge it, mark a false positive, filter by review status, or delete it and its evidence. Leave the siren off during setup; historical event loading does not trigger it.
 
-Zones are normalized image polygons representing operator policy, not learned restrictions or distances in metres. They are saved separately for webcam 0, webcam 1, phone mode and each recording. Different phones currently share the phone-mode zone configuration: redraw after changing phone, camera angle, orientation or scene. Letterboxing is excluded from drawing coordinates. Occluded feet, camera movement and detector errors remain limitations.
+Zones are normalized image polygons representing operator policy, not learned restrictions or distances in metres. They are saved separately for webcam 0, webcam 1, phone mode and each recording. Phone zones are now scoped to the paired browser/device. Redraw after changing camera angle, orientation or scene. Letterboxing is excluded from drawing coordinates. Occluded feet, camera movement and detector errors remain limitations.
 
 ## Phone on mobile data
 
 1. Run with --remote. In Connect phone choose **Camera upload only**, then scan the private QR in a full mobile browser.
-2. Allow camera permission, select the rear camera and tap Start streaming. This link permits upload only. For dashboard/evidence access on another browser, issue a separate **Operator** link.
+2. Allow camera permission, select the rear camera and tap Start streaming. This link permits upload only. For monitoring/evidence access, issue a separate **Guard monitoring & acknowledge** link; use **Operator** only for administrative controls.
 3. Keep the page foregrounded and screen awake. Fast requests up to 640 pixels; Detail requests up to 960. Wake lock is best effort. Stop releases the camera. Switching source on the dashboard also stops the old sender.
 4. Turn phone Wi-Fi off to demonstrate cellular operation. Both devices need internet; the laptop must keep running. Repeat zone/bag tests after fixing the phone position.
-5. Briefly interrupt and restore connectivity. The sender should reconnect or explain expired access/source change. A second simultaneous sender is rejected. Restarting the server invalidates default links: scan again.
+5. Briefly interrupt and restore connectivity. The sender should reconnect or explain expired access/source change. A second sender from the same paired browser is rejected; other paired devices get independent slots up to the configured camera limit. Restarting the server invalidates default links: scan again.
 
 Public HTTPS/WSS transport and camera/operator separation were tested through Cloudflare from this machine. Physical phone permissions, carrier behavior, browser suspension and hardware sensor delay were not verified automatically.
+
+## Posture, colour, speed and camera position
+
+Use a fixed camera with the full body visible, including hips, knees and ankles. Pose enrichment runs in one background worker every 0.75 seconds by default; allow a few seconds for the first model load and two consistent pose results. Sitting/standing are joint-angle estimates from COCO keypoints. Occluded legs, crouching, camera angle or low-confidence joints show **unknown** rather than a guessed label. Posture is not a trained action or behavior classifier.
+
+The live overlay and Observed people/animals/objects table show pose, upper/lower clothing colours or object colour, speed and x/y velocity. Colours are estimates of visible crops, affected by background and lighting. Pixel velocity uses +x right and +y down. New or reacquired tracks show measuring until two suitable observations exist. Camera motion also creates image motion.
+
+Open **Camera coordinates and speed calibration** beneath the video. Enter this camera's name and installation latitude/longitude, then Save. For a phone, tap **Share this camera's GPS** on the phone page after streaming starts and allow the device's permission prompt. The displayed location comes from that camera device; no server/IP geolocation is used. Denial leaves video working without coordinates. GPS accuracy is shown and location can be retained with event evidence. Tap again after moving. GPS is in server session memory; installation settings persist in data/cameras.json.
+
+Physical speed is optional: measure a known reference-plane distance, divide metres by its pixel length and enter metres per pixel. Save while that camera's live reference frame is visible. The app then shows approximate m/s (km/h is also in telemetry); image aspect changes invalidate the scale. This simple scalar estimate is not perspective-correct and is unsuitable as certified vehicle speed. Redo calibration after moving or zooming the camera.
+
+Select a person box/row for a compact observation summary. Gender is **not inferred from appearance**. The optional Man/Woman/Unspecified dropdown records only an operator-entered session label; it does not identify a person or verify gender.
+
+All 10 pages of the supplied PHOTOS OF UI reference were visually reviewed. The UI now follows its class-coloured boxes (people green, vehicles yellow, warnings red), restricted-zone fills, foot markers, bag-proximity connectors in pixels, clothing/object colour swatches, live alert detail panel, summary counts and sampled occupancy trend. Counts and graphs use actual observed/persisted data. The crowd update adds a multi-camera overview and configured capacity alerts. Helmet/vest/hat compliance remains unsupported. Crowded scenes can be substantially undercounted; see the actual Mall evaluation in CROWD_GUIDE.md. No unsupported PPE result or fabricated camera count is displayed.
 
 ## Person IDs
 
@@ -40,7 +56,7 @@ Similar clothing, poor crops, changed lighting and gaps beyond the default 120-s
 
 ## Knife capability
 
-All 80 pretrained COCO classes are enabled, including knife (index 43), person and the three bag classes. Webcam and phone use the same server detector. Objects above 0.40 can be drawn. Warning evidence needs >=0.55; HIGH review requires the same tracked knife in >=3 observations across >=1 second near a visible person box (12% expansion). There is no hand-pose or intent model.
+All 80 pretrained COCO classes are enabled, including knife (index 43), person and the three bag classes. Webcam and phone use the same server detector. Any visible knife detection above the detector's 0.40 threshold gets a red DANGER warning immediately, explicitly marked unconfirmed. A saved HIGH knife event requires >=0.55 confidence and >=3 observations over >=1 second. A person need not be nearby by default. There is no hand-contact or intent model; visual danger wording can be a false alarm.
 
 The selected 20-image development check contains 16 knives. YOLO11s matched 7 at 0.40, with 3 unmatched knife predictions; at 0.55 it matched 6, with 3 unmatched predictions. A separate four-image local test contains two knives: the deployed model matched one at 0.40. These tiny selected checks show misses, not reliable weapon detection. Small, hidden, edge-on, blurred or distant blades can be missed.
 

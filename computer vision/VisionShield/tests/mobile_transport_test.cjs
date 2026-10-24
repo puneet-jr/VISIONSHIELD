@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 (async()=>{
  let now=0,next=0,tasks=new Map(),sent=0,maximum=0,released=0;
  const elements={};
- for(const id of ['start','stop','status','stats','facing','quality','preview','capture'])elements[id]={disabled:false,textContent:'',value:id==='quality'?'640':'environment'};
+ for(const id of ['start','stop','status','stats','facing','quality','preview','capture','shareLocation','locationStatus'])elements[id]={disabled:false,textContent:'',value:id==='quality'?'640':'environment'};
  Object.assign(elements.preview,{videoWidth:640,videoHeight:480,play:async()=>{}});
  Object.assign(elements.capture,{getContext:()=>({drawImage(){}}),toBlob:callback=>callback({size:4000})});
  const later=(fn,ms=0)=>{const id=++next;tasks.set(id,{at:now+ms,fn});return id};

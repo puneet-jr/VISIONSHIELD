@@ -50,6 +50,16 @@ async def main():
             elapsed = time.perf_counter() - started
             telemetry = (await client.get(local + "/api/info")).json()
             assert telemetry["camera_online"], telemetry
+            # Explicit synthetic coordinates verify transport/binding, not physical GPS.
+            gps = await client.post(
+                base + "/api/camera/location",
+                json={"latitude": 1.2345, "longitude": 2.3456, "accuracy_m": 9},
+            )
+            assert gps.status_code == 200, gps.status_code
+            assert (await client.get(base + "/api/camera/settings")).status_code == 403
+            assert (await client.get(local + "/api/info")).json()["camera"]["location"][
+                "latitude"
+            ] == 1.2345
         operator_info = (await client.get(local + "/api/connection?access=operator")).json()
         operator_token = parse_qs(urlsplit(operator_info["phone_url"]).fragment)["token"][0]
         assert (

@@ -10,7 +10,7 @@
   },
   "camera": {
     "status": "Live - streaming to VisionShield",
-    "stats": "12.3 uploads/s | 640 x 480 | RTT 6 ms | 0/3 in flight"
+    "stats": "12.2 uploads/s | 640 x 480 | RTT 7 ms | 0/3 in flight"
   },
   "recorded": {
     "recorded": true,
@@ -20,84 +20,214 @@
   "metrics": {
     "resource_samples": [
       {
-        "timestamp": 1792818268.6078823,
-        "cpu_percent_one_core_100": 1.5,
-        "rss_mb": 105.07
+        "timestamp": 1792824760.9681787,
+        "cpu_percent_one_core_100": 3.1,
+        "rss_mb": 530.53
       },
       {
-        "timestamp": 1792818269.6186674,
-        "cpu_percent_one_core_100": 45.3,
-        "rss_mb": 124.07
+        "timestamp": 1792824761.968416,
+        "cpu_percent_one_core_100": 0,
+        "rss_mb": 530.53
       },
       {
-        "timestamp": 1792818270.5995626,
-        "cpu_percent_one_core_100": 195.1,
-        "rss_mb": 209.38
+        "timestamp": 1792824762.9732141,
+        "cpu_percent_one_core_100": 6.2,
+        "rss_mb": 532.25
       },
       {
-        "timestamp": 1792818271.6027532,
-        "cpu_percent_one_core_100": 298.4,
-        "rss_mb": 239.87
+        "timestamp": 1792824763.9800093,
+        "cpu_percent_one_core_100": 339.1,
+        "rss_mb": 534.28
       },
       {
-        "timestamp": 1792818272.6022549,
-        "cpu_percent_one_core_100": 312.5,
-        "rss_mb": 240.51
+        "timestamp": 1792824764.9787252,
+        "cpu_percent_one_core_100": 314.1,
+        "rss_mb": 536.13
       },
       {
-        "timestamp": 1792818273.590658,
-        "cpu_percent_one_core_100": 270.3,
-        "rss_mb": 237.04
+        "timestamp": 1792824765.9746943,
+        "cpu_percent_one_core_100": 257.8,
+        "rss_mb": 532.67
       },
       {
-        "timestamp": 1792818274.5948813,
-        "cpu_percent_one_core_100": 153.1,
-        "rss_mb": 240.6
+        "timestamp": 1792824766.9660714,
+        "cpu_percent_one_core_100": 165.6,
+        "rss_mb": 536.2
       },
       {
-        "timestamp": 1792818275.593568,
-        "cpu_percent_one_core_100": 337.5,
-        "rss_mb": 240.74
+        "timestamp": 1792824767.9654984,
+        "cpu_percent_one_core_100": 331.2,
+        "rss_mb": 536.28
       },
       {
-        "timestamp": 1792818276.596753,
-        "cpu_percent_one_core_100": 287.5,
-        "rss_mb": 240.74
+        "timestamp": 1792824768.967163,
+        "cpu_percent_one_core_100": 354.7,
+        "rss_mb": 536.28
       },
       {
-        "timestamp": 1792818277.6016338,
-        "cpu_percent_one_core_100": 317.2,
-        "rss_mb": 240.74
+        "timestamp": 1792824769.9718764,
+        "cpu_percent_one_core_100": 323.4,
+        "rss_mb": 536.33
       }
     ],
     "display_clients": [
       {
-        "displayed_fps": 9.330223258913696,
-        "display_latency_ms": 9.3251953125,
+        "displayed_fps": 11.658117380575996,
+        "display_latency_ms": 0,
         "dropped_frames": 0,
-        "clock_uncertainty_ms": 5.5,
-        "updated_at": 1792818276.206943
+        "clock_uncertainty_ms": 10,
+        "updated_at": 1792824769.8501334
       }
     ],
-    "capture_frames": 92,
-    "preview_frames_encoded": 92,
-    "inference_frames": 36,
-    "inference_dropped_frames": 52,
-    "inference_drop_percent": 59.09,
+    "capture_frames": 80,
+    "preview_frames_encoded": 80,
+    "inference_frames": 33,
+    "inference_dropped_frames": 43,
+    "inference_drop_percent": 56.58,
     "preview_dropped_frames": 0,
-    "preview_fps": 12.1,
-    "inference_fps": 5.2,
-    "inference_ms": 187.7,
+    "preview_fps": 12.6,
+    "inference_fps": 4.2,
+    "inference_ms": 230.3,
     "suppressed_alerts": 0,
     "stage_times_ms": {
-      "tracking_identity_ms": 0.07,
-      "association_temporal_ms": 0.02,
+      "tracking_identity_ms": 0.11,
+      "attributes_ms": 0.03,
+      "association_temporal_ms": 0.03,
       "assessment_persistence_ms": 0,
-      "detection_ms": 187.71
+      "detection_ms": 230.27
     },
     "latency_scope": "display estimates are client-reported capture-to-image-load with midpoint clock synchronization; hardware sensor delay is unmeasured"
   },
-  "zone_controls": "draw/save/remove passed",
+  "attributes": {
+    "scope": "Actual inference on static official bus example photo; not live action accuracy",
+    "pose": {
+      "enabled": true,
+      "model": "yolo11n-pose.pt",
+      "loaded": true,
+      "error": null,
+      "inference_ms": 92.2,
+      "input_size": 320,
+      "training": "official vendor COCO-keypoints pretrained; posture joint-angle rules are not trained actions"
+    },
+    "people": [
+      {
+        "posture": "standing",
+        "colours": {
+          "upper_clothing": {
+            "name": "blue",
+            "coverage": 0.64,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          },
+          "lower_clothing": {
+            "name": "black",
+            "coverage": 0.4,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          }
+        },
+        "movement": {
+          "speed_px_s": 0,
+          "velocity_px_s": {
+            "x": 0,
+            "y": 0
+          },
+          "coordinate_system": "image pixels; +x right, +y down",
+          "speed_m_s": null,
+          "speed_km_h": null,
+          "calibration": "not calibrated; no physical-speed claim"
+        }
+      },
+      {
+        "posture": "standing",
+        "colours": {
+          "upper_clothing": {
+            "name": "brown",
+            "coverage": 0.37,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          },
+          "lower_clothing": {
+            "name": "black",
+            "coverage": 0.36,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          }
+        },
+        "movement": {
+          "speed_px_s": 0,
+          "velocity_px_s": {
+            "x": 0,
+            "y": 0
+          },
+          "coordinate_system": "image pixels; +x right, +y down",
+          "speed_m_s": null,
+          "speed_km_h": null,
+          "calibration": "not calibrated; no physical-speed claim"
+        }
+      },
+      {
+        "posture": "standing",
+        "colours": {
+          "upper_clothing": {
+            "name": "black",
+            "coverage": 0.69,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          },
+          "lower_clothing": {
+            "name": "blue",
+            "coverage": 0.52,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          }
+        },
+        "movement": {
+          "speed_px_s": 0,
+          "velocity_px_s": {
+            "x": 0,
+            "y": 0
+          },
+          "coordinate_system": "image pixels; +x right, +y down",
+          "speed_m_s": null,
+          "speed_km_h": null,
+          "calibration": "not calibrated; no physical-speed claim"
+        }
+      },
+      {
+        "posture": "unknown",
+        "colours": {
+          "upper_clothing": {
+            "name": "mixed",
+            "coverage": 0.26,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          },
+          "lower_clothing": {
+            "name": "mixed",
+            "coverage": 0.28,
+            "method": "dominant colour in bounding-box crop; lighting/background can change results"
+          }
+        },
+        "movement": {
+          "speed_px_s": 0,
+          "velocity_px_s": {
+            "x": 0,
+            "y": 0
+          },
+          "coordinate_system": "image pixels; +x right, +y down",
+          "speed_m_s": null,
+          "speed_km_h": null,
+          "calibration": "not calibrated; no physical-speed claim"
+        }
+      }
+    ]
+  },
+  "gps": {
+    "scope": "Simulated browser GPS permission result",
+    "camera_id": "phone:unpaired-session"
+  },
+  "referenceUi": {
+    "people": 4,
+    "vehicles": 1,
+    "colourSwatches": 9,
+    "occupancyPoints": "2.0,48.0 33.7,48.0 57.3,48.0 94.7,48.0 117.4,48.0 149.6,48.0 173.0,48.0 210.6,48.0 237.1,4.0 265.1,4.0 298.0,4.0"
+  },
+  "zone_controls": "draw/save/remove and immediate live warning passed",
+  "manual_gender_annotation": "operator-entered label saved and cleared; no visual inference",
   "event_review": "filtered list/details/evidence/false-positive/deletion passed",
   "display_measurement_scope": "320x240 synthetic HTTP uploads; server receive-to-display estimate, hardware sensor delay unmeasured",
   "errors": []

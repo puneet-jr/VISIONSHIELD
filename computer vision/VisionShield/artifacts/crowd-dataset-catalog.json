@@ -1,0 +1,133 @@
+{
+  "model_status": "Live yolo11s pretrained COCO detector; no crowd-trained weights promoted. Mall evaluation exposes dense-crowd undercount.",
+  "trained_on_supplied_sources": false,
+  "sources": [
+    {
+      "name": "VSCrowd",
+      "url": "https://github.com/HopLee6/VSCrowd-Dataset",
+      "status": "annotations acquired; video files not acquired",
+      "use": "Head-box/tracking annotation audit; not full-body training. Videos require a separate approximately 19 GB multipart download.",
+      "license": "Publisher HF metadata MIT; verify video rights",
+      "acquisition": {
+        "bytes": 39617507,
+        "sha256": "10ca114bf96a5e8cb971246d7e817ebc86f4be22855ee39c4decda96ea946a4a",
+        "acquired": true,
+        "trained": false
+      },
+      "annotation_example": {
+        "file": "annotations/test_111.txt",
+        "tokens_first_frame": 1170,
+        "format": "frame ID then repeated head ID,x1,y1,x2,y2,point x,point y; verify delimiters before conversion"
+      }
+    },
+    {
+      "name": "UCF crowd segmentation",
+      "url": "https://www.crcv.ucf.edu/data/crowd.php",
+      "status": "legacy page unavailable during acquisition",
+      "use": "Segmentation/motion research candidate; not assumed to contain person boxes or danger labels.",
+      "license": "Verify original source terms"
+    },
+    {
+      "name": "Mall",
+      "url": "https://personal.ie.cuhk.edu.hk/~ccloy/downloads_mall_dataset.html",
+      "status": "2000 images and head points acquired",
+      "use": "Frozen-model 24-frame counting evaluation and explicitly labelled sampled recording; no training on benchmark frames.",
+      "license": "Research/noncommercial; cite Loy et al.",
+      "acquisition": {
+        "bytes": 91833998,
+        "sha256": "21baea1066ea1473289c28c2f9fc8440cea3c8d8905b83a66529fbef184d47e3",
+        "acquired": true,
+        "trained": false
+      }
+    },
+    {
+      "name": "Religious gathering / crowd rally",
+      "url": "https://www.kaggle.com/datasets/dataclusterlabs/religious-gathering-crowd-rally-crowd",
+      "status": "public metadata checked; archive not acquired",
+      "use": "Candidate scene images; annotation geometry and license must be verified before detector training.",
+      "license": "Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)",
+      "reported_bytes": 359138681,
+      "description": "Crowd detection in large masses"
+    },
+    {
+      "name": "Crowd Detection all videos",
+      "url": "https://universe.roboflow.com/crowddetection-eddqo/crowd-detection-all-videos",
+      "status": "publisher page checked; image export not acquired",
+      "use": "4033 images, class named 0; verify geometry and semantic mapping. Export requires workspace/API access.",
+      "license": "Publisher page CC BY 4.0"
+    },
+    {
+      "name": "Hajj and Umrah",
+      "url": "https://www.kaggle.com/datasets/ziya07/hajj-and-umrah-crowd-management-dataset",
+      "status": "CSV acquired and inspected; no images",
+      "use": "Tabular dataset audit only. Not detector image training or validated stampede ground truth.",
+      "license": "Kaggle metadata CC0",
+      "acquisition": {
+        "bytes": 448427,
+        "sha256": "8e4cdd41ea587aa652a105ca7f19e50792c6053742dbb31dcfa39b4ce71d5360",
+        "acquired": true,
+        "trained": false
+      },
+      "tables": {
+        "hajj_umrah_crowd_management_dataset.csv": {
+          "rows": 10000,
+          "columns": [
+            "Timestamp",
+            "Location_Lat",
+            "Location_Long",
+            "Crowd_Density",
+            "Movement_Speed",
+            "Activity_Type",
+            "Weather_Conditions",
+            "Temperature",
+            "Sound_Level_dB",
+            "AR_System_Interaction",
+            "Fatigue_Level",
+            "Stress_Level",
+            "Queue_Time_minutes",
+            "Health_Condition",
+            "Age_Group",
+            "Nationality",
+            "Transport_Mode",
+            "Waiting_Time_for_Transport",
+            "Security_Checkpoint_Wait_Time",
+            "Emergency_Event",
+            "Incident_Type",
+            "Crowd_Morale",
+            "Pilgrim_Experience",
+            "Interaction_Frequency",
+            "Distance_Between_People_m",
+            "Event_Type",
+            "Time_Spent_at_Location_minutes",
+            "AR_Navigation_Success",
+            "Satisfaction_Rating",
+            "Perceived_Safety_Rating"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Roboflow crowd counting",
+      "url": "https://universe.roboflow.com/crowd-dataset/crowd-counting-dataset-w3o7w",
+      "status": "publisher page checked; image export not acquired",
+      "use": "2898 images, people/head counting; verify head versus full-body geometry. Export requires workspace/API access.",
+      "license": "Publisher page CC BY 4.0"
+    },
+    {
+      "name": "UniDataPro crowd counting",
+      "url": "https://huggingface.co/datasets/UniDataPro/crowd-counting",
+      "status": "public card checked; preview only, full data not acquired",
+      "use": "40-image coarse count-bin preview; full head annotations are not public preview. Not suitable as supplied for person-box training.",
+      "license": "CC BY NC ND 4.0; full product access separately licensed"
+    },
+    {
+      "name": "Kaggle crowd counting",
+      "url": "https://www.kaggle.com/datasets/fmena14/crowd-counting",
+      "status": "public metadata checked; archive not acquired",
+      "use": "Candidate counting data; inspect format and sequence split before training.",
+      "license": "Unknown",
+      "reported_bytes": 1263707204,
+      "description": "Can you count object in an Image?"
+    }
+  ]
+}

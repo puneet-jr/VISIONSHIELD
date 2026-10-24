@@ -72,6 +72,7 @@ def model_information(detector):
         "event-evaluation.json",
         "detector-heldout.json",
         "training-smoke.json",
+        "pose-verification.json",
     ]:
         file = ROOT / "artifacts" / name
         try:

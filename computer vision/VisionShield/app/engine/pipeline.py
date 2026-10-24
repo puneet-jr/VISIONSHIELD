@@ -24,24 +24,40 @@ from app.engine.incident_agent import incident_dispatcher
 from app.ingestion.video_stream import video_manager
 from app.core.event_hub import event_hub
 from app.db.database import db
+from app.core.cameras import camera_registry, movement
+from app.engine.attributes import describe_colours
+from app.engine.posture import PoseAnalyzer
+from app.engine.crowd import CrowdDynamicsAnalyzer
+from app.engine.head_map import head_detector
 
 logger = logging.getLogger("VisionShield.Pipeline")
 
 
 class SurveillancePipeline:
-    def __init__(self, persist=True):
+    def __init__(self, persist=True, video=None, detector=None, zone_source=None, enable_pose=None):
+        self.video = video or video_manager
+        self.zone_source = zone_source
+        self.crowd = CrowdDynamicsAnalyzer()
+        self.head_map = None
+        self.last_head_at = 0
         self.persist = persist
         self.identities = IdentityManager()
         self.assessment = AssessmentEngine()
         self.stage_times = {}
         self.processed_frames = 0
         self.skipped_frames = 0
-        self.detector = ObjectDetector()
-        self.tracker = ObjectTracker(retention_seconds=config.TRACK_RETENTION_SECONDS)
+        self.detector = detector or ObjectDetector()
+        self.tracker = ObjectTracker(
+            retention_seconds=config.TRACK_RETENTION_SECONDS, max_tracks=config.MAX_DETECTIONS * 2
+        )
         self.spatio_temporal = SpatioTemporalAnalyzer()
         self.kinematics = KinematicsAnalyzer()
         self.geofence = GeofenceAnalyzer(config.ZONES_PATH)
         self.weapon = WeaponAnalyzer()
+        self.pose = PoseAnalyzer(
+            enabled=config.ENABLE_POSE and persist if enable_pose is None else enable_pose
+        )
+        self.person_annotations = {}
 
         self.is_running = False
         self.lock = threading.RLock()
@@ -62,43 +78,62 @@ class SurveillancePipeline:
 
     def run_cycle(self):
         """Single processing step called continuously by the surveillance service loop."""
-        with video_manager.lock:
-            frame_id = video_manager.frame_id
-            generation = video_manager.generation
-            captured_at = video_manager.last_frame_time
+        with self.video.lock:
+            frame_id = self.video.frame_id
+            generation = self.video.generation
+            captured_at = self.video.last_frame_time
             if frame_id == self.last_frame_id:
                 return
-            frame = (
-                video_manager.latest_frame.copy()
-                if video_manager.latest_frame is not None
-                else None
-            )
+            frame = self.video.latest_frame.copy() if self.video.latest_frame is not None else None
         previous_frame_id = self.last_frame_id
         self.last_frame_id = frame_id
         if generation != self.generation:
             self.processed_frames = 0
             self.skipped_frames = 0
             self.assessment = AssessmentEngine()
-            self.tracker = ObjectTracker(retention_seconds=config.TRACK_RETENTION_SECONDS)
+            self.tracker = ObjectTracker(
+                retention_seconds=config.TRACK_RETENTION_SECONDS,
+                max_tracks=config.MAX_DETECTIONS * 2,
+            )
             self.spatio_temporal = SpatioTemporalAnalyzer()
             self.kinematics = KinematicsAnalyzer()
             self.weapon = WeaponAnalyzer()
             self.event_times.clear()
             self.last_incident_time.clear()
-            self.geofence.select_source(video_manager.source_path)
+            self.geofence.select_source(self.zone_source or self.video.source_path)
+            if not self.geofence.zones and self.geofence.source not in self.geofence.saved:
+                self.geofence.add_zone(
+                    "default-crowd",
+                    "Observed crowd count review",
+                    [[0, 0], [1, 0], [1, 1], [0, 1]],
+                    purpose="crowd_monitor",
+                    max_capacity=config.CROWD_DEFAULT_CAPACITY,
+                )
+            self.crowd = CrowdDynamicsAnalyzer()
+            self.head_map = None
+            self.last_head_at = 0
             self.generation = generation
         if frame is None:
             return
 
         timestamp = captured_at or time.time()
         h, w = frame.shape[:2]
+        if (
+            self.persist
+            and config.ENABLE_HEAD_MAP
+            and timestamp - self.last_head_at >= config.HEAD_MAP_INTERVAL_SECONDS
+        ):
+            self.head_map = head_detector.detect(frame)
+            self.last_head_at = timestamp
+            if self.head_map is not None:
+                self.head_map["captured_at"] = timestamp
 
         # 1. Object Detection
         started = time.perf_counter()
-        detections = self.detector.detect(frame) if video_manager.camera_online else []
+        detections = self.detector.detect(frame) if self.video.camera_online else []
         self.inference_ms = (time.perf_counter() - started) * 1000
 
-        if generation != video_manager.generation:
+        if generation != self.video.generation:
             return
 
         stage = time.perf_counter()
@@ -109,12 +144,28 @@ class SurveillancePipeline:
             if t.disappeared_count == 0
         ]
 
-        camera_id = video_manager.camera_id
+        camera_id = self.video.camera_id
         self.identities.associate(tracks, camera_id, generation, timestamp)
         pending_segments = self.identities.drain_history()
         if self.persist:
             db.record_identity_segments(pending_segments)
         self.stage_times["tracking_identity_ms"] = round((time.perf_counter() - stage) * 1000, 2)
+        stage = time.perf_counter()
+        camera_settings = camera_registry.get(camera_id)
+        self.person_annotations = {
+            pid: annotation
+            for pid, annotation in self.person_annotations.items()
+            if pid in self.identities.people
+        }
+        for track in tracks:
+            describe_colours(frame, track)
+            track.movement = movement(track, camera_settings, w, h)
+            if track.label == "person":
+                track.gender = self.person_annotations.get(
+                    track.person_id, {"label": None, "source": "not inferred from appearance"}
+                )
+        self.pose.apply(tracks, frame, timestamp, generation)
+        self.stage_times["attributes_ms"] = round((time.perf_counter() - stage) * 1000, 2)
         stage = time.perf_counter()
         # Recompute live severity; historical incidents stay in the timeline, not on clear tracks.
         for track in tracks:
@@ -130,7 +181,8 @@ class SurveillancePipeline:
         gf_events = self.geofence.process_geofence(tracks, w, h, timestamp)
 
         weapon_events = self.weapon.process(tracks, timestamp)
-        all_events = st_events + km_events + gf_events + weapon_events
+        crowd_events = self.crowd.process(tracks, self.geofence.zones, w, h, timestamp)
+        all_events = st_events + km_events + gf_events + weapon_events + crowd_events
 
         self.stage_times["association_temporal_ms"] = round((time.perf_counter() - stage) * 1000, 2)
         stage = time.perf_counter()
@@ -138,6 +190,14 @@ class SurveillancePipeline:
             event = self.assessment.assess(candidate, tracks, camera_id, timestamp)
             if event is None:
                 continue
+            event["camera_location"] = camera_settings.get("location")
+            subject = next((t for t in tracks if t.track_id == event["track_id"]), None)
+            if subject:
+                event["observed_attributes"] = {
+                    "colours": getattr(subject, "colours", {}),
+                    "movement": getattr(subject, "movement", None),
+                    "posture": getattr(subject, "posture", None),
+                }
             evidence = None
             if config.STORE_EVENT_IMAGES:
                 scale = min(1.0, 640 / max(h, w))
@@ -173,7 +233,7 @@ class SurveillancePipeline:
         for detection in detections:
             counts[detection["label"]] = counts.get(detection["label"], 0) + 1
         self.last_detection_counts = counts
-        if generation == video_manager.generation:
+        if generation == self.video.generation:
             self.snapshot = {
                 "frame_id": frame_id,
                 "generation": generation,
@@ -185,9 +245,16 @@ class SurveillancePipeline:
                 "zones": self.geofence.get_zones_dict(),
                 "confirmed_zones": list(self.geofence.confirmed_zones),
                 "camera_id": camera_id,
-                "source_type": video_manager.source_type,
+                "camera": camera_settings,
+                "pose": self.pose.information(),
+                "source_type": self.video.source_type,
                 "stage_times": dict(self.stage_times),
                 "counts": counts,
+                "head_map": self.head_map if timestamp - self.last_head_at < 1.5 else None,
+                "crowd": {
+                    "zones": self.crowd.zone_metrics,
+                    "count_scope": "visible detections, not unique attendance",
+                },
                 "inference_ms": round(self.inference_ms, 1),
                 "processing_fps": round(self.processing_fps, 1),
             }

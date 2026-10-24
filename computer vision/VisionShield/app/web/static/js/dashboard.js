@@ -5,6 +5,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     let closing=false, eventSocket;
+    let selectedPersonId=null, cameraFormId=null, currentFrameDimensions=null, lastModelState=null;
+    const vehicleLabels=new Set(['car','truck','bus','motorcycle','bicycle','train','boat','airplane']);
+    const colourPalette={black:'#18212b',white:'#f8fafc',grey:'#94a3b8',red:'#ef4444',orange:'#fb923c',yellow:'#fde047',green:'#22c55e',cyan:'#22d3ee',blue:'#3b82f6',purple:'#a855f7',pink:'#f472b6',brown:'#a16207'};
+    let occupancy=[],occupancySource=null,lastOccupancyFrame=-1,liveCameraName='Camera';
     const toast = message => { const el = document.getElementById('toast'); el.textContent = message; el.classList.add('visible'); setTimeout(() => el.classList.remove('visible'), 4500); };
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const request = async (url, options) => { const res = await fetch(url, options); if (!res.ok) throw Error(`Request failed (${res.status})`); return res.json(); };
@@ -99,11 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const access = document.getElementById('pairRole').value;
             const data = await request('/api/connection?access=' + access);
-            const link = document.getElementById('phoneLink'); link.href = data.phone_url; link.textContent = data.remote_ready ? 'Open secure phone camera' : 'Local camera link';
+            const link = document.getElementById('phoneLink'); link.href = data.phone_url; link.textContent = data.phone_url;
             document.getElementById('phoneQr').src = '/api/qr?access=' + access + '&t=' + Date.now();
             document.getElementById('connectionHint').textContent = data.remote_ready ? 'Works across Wi-Fi and mobile data. Keep this private pairing link with your team.' : 'For phone access across networks, restart with: .\\.venv\\Scripts\\python.exe run.py --remote. HTTPS is required for camera access.';
             document.getElementById('copyPhoneLink').onclick = async () => { try { await navigator.clipboard.writeText(data.phone_url); toast('Pairing link copied'); } catch { toast('Open the pairing link to copy it from the address bar'); } };
-        } catch (e) { toast(e.message); }
+        } catch (e) { document.getElementById('phoneLink').removeAttribute('href');document.getElementById('phoneLink').textContent='Waiting for public HTTPS link';document.getElementById('phoneQr').removeAttribute('src');document.getElementById('connectionHint').textContent=e.message;document.getElementById('copyPhoneLink').onclick=null;toast(e.message);setTimeout(()=>{if(qrModal.style.display==='flex')refreshPairing()},2000); }
     }
     btnConnectPhone.addEventListener('click', refreshPairing);
     document.getElementById('pairRole').addEventListener('change', refreshPairing);
@@ -195,7 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         severity: "HIGH",
                         color: "#ef4444"
                         ,purpose: document.getElementById('zonePurpose').value,
-                        dwell_seconds: Number(document.getElementById('zoneDwell').value)
+                        dwell_seconds: Number(document.getElementById('zoneDwell').value),
+                        max_capacity: Number(document.getElementById('zoneCapacity').value)||null,
+                        area_m2: Number(document.getElementById('zoneArea').value)||null,
+                        density_threshold: Number(document.getElementById('zoneDensity').value)||null
                     }]
                 })
             });
@@ -205,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnDrawZone.style.display = 'inline-block';
             btnClearZones.style.display = 'none';
             btnSaveZone.style.display = 'none';
-            zoneHint.textContent = "Zone saved for this source. Restricted zones use footpoint and dwell; bag zones create review candidates only.";
+            zoneHint.textContent = "Zone saved. Restricted zones warn immediately for people/animals; bag-monitor zones flag abandoned bag candidates.";
             ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
         } catch (e) {
             toast("Failed to save zone: " + e);
@@ -297,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         item.innerHTML = `
             <div class="item-top">
-                <span class="item-type">${escapeHtml(data.alert_type)} · ${escapeHtml(data.severity)} review</span>
+                <span class="item-type">${escapeHtml(data.display_label || data.alert_type)} · ${escapeHtml(data.severity)} review</span>
                 <span class="item-time">${escapeHtml(data.timestamp ? data.timestamp.split(' ')[1] : '')}</span>
             </div>
             <div class="item-desc">${escapeHtml(data.legacy ? 'Legacy observation: predates the current review policy. Open details for the original record.' : data.explanation || '')}</div>
@@ -338,7 +345,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if(closing)return;
         try {
             const data = await request('/api/info');
+            const modelState=JSON.stringify([data.model,data.backend,data.detector_ready,data.enabled_classes.length]);
+            if(modelState!==lastModelState){lastModelState=modelState;refreshInsights();}
             cameraOnline = data.camera_online;
+            currentFrameDimensions=data.frame_dimensions;
+            const camera=data.camera || {}, location=camera.location;
+            liveCameraName=camera.name || data.camera_id;
+            document.getElementById('cameraStamp').textContent=`${data.recorded?'RECORDED':data.camera_online?'LIVE':'OFFLINE'} · ${liveCameraName}`;
+            document.getElementById('incidentCard').hidden=data.report_mode==='Disabled';
+            document.getElementById('cameraLocation').textContent=location ? `CAMERA ${camera.name}: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)} · ${location.source}${location.accuracy_m!=null?' · accuracy ±'+Math.round(location.accuracy_m)+' m':''}` : `CAMERA ${camera.name || data.camera_id}: location not set (no server-location lookup)`;
+            document.getElementById('poseState').textContent=data.pose?.error ? 'Posture unavailable: '+data.pose.error : data.pose?.loaded ? `COCO keypoint posture · ${data.pose.inference_ms} ms per pose pass` : 'Posture: waiting for a person / visible joints';
+            if(cameraFormId!==data.camera_id){cameraFormId=data.camera_id;document.getElementById('cameraName').value=camera.name||data.camera_id;document.getElementById('cameraLatitude').value=location?.latitude??'';document.getElementById('cameraLongitude').value=location?.longitude??'';document.getElementById('cameraScale').value=camera.metres_per_pixel??'';}
+            document.getElementById('zoneDwell').disabled=data.zone_immediate_warning;
             hudFps.textContent = data.camera_online ? `${Math.round(data.preview_fps || 0)} / ${(data.processing_fps || 0).toFixed(1)}` : '0 / 0';
             document.getElementById('videoEmpty').style.display = data.camera_online ? 'none' : 'flex';
             hudTracks.textContent = data.active_tracks || '0';
@@ -362,11 +380,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Camera JPEG delivery never waits for inference. Boxes are separate, age-limited metadata.
     const trackCanvas = document.getElementById('trackingCanvas');
     const trackContext = trackCanvas.getContext('2d');
-    let telemetry = null, receivedAt = 0;
+    let telemetry = null, receivedAt = 0, lastTableUpdate=0;
     async function pollTracks() {
         if(closing)return;
-        try { telemetry = await request('/api/telemetry'); receivedAt = performance.now(); }
-        catch { telemetry = null; }
+        try { telemetry = await request('/api/telemetry'); receivedAt = performance.now(); if(receivedAt-lastTableUpdate>500){updateObservations();lastTableUpdate=receivedAt;} }
+        catch { telemetry = null; updateObservations(); }
         setTimeout(pollTracks, 100);
     }
     function drawTracks() {
@@ -377,36 +395,56 @@ document.addEventListener('DOMContentLoaded', () => {
             trackCanvas.width = Math.round(image.width); trackCanvas.height = Math.round(image.height);
         }
         Object.assign(trackCanvas.style, {left:(image.left-parent.left)+'px', top:(image.top-parent.top)+'px', width:image.width+'px', height:image.height+'px'});
-        const c = trackContext, w = trackCanvas.width, h = trackCanvas.height;
+        const c = trackContext, w = trackCanvas.width, h = trackCanvas.height, occupied=[];
         c.clearRect(0,0,w,h);
+        const crowdMode=document.getElementById('overlayMode').value==='crowd';
         if (telemetry) {
             for (const zone of telemetry.zones || []) {
                 c.beginPath(); zone.points.forEach((p,i) => i ? c.lineTo(p[0]*w,p[1]*h) : c.moveTo(p[0]*w,p[1]*h)); c.closePath();
-                const high = !telemetry.stale && (telemetry.confirmed_zones || []).includes(zone.id) && zone.severity === 'HIGH';
-                c.strokeStyle = high ? '#f87171' : '#7dd3fc'; c.fillStyle = high ? '#ef444422' : '#7dd3fc0a'; c.lineWidth = 2; c.fill(); c.stroke();
+                const crowd=(telemetry.crowd?.zones||[]).find(z=>z.zone_id===zone.id);
+                const high = !telemetry.stale && ((telemetry.confirmed_zones || []).includes(zone.id)||(crowd?.warning_confirmed&&crowd.state==='critical'));
+                c.strokeStyle = high ? '#ff4545' : zone.purpose==='restricted'?'#fbbf24':'#80e4bd'; c.fillStyle = high ? '#ef444440' : zone.purpose==='restricted'?'#fbbf2410':'#80e4bd18'; c.lineWidth = high?3:2;c.setLineDash(high?[8,4]:[]); c.fill(); c.stroke();c.setLineDash([]);
                 if(zone.points.length) { c.font='11px system-ui'; c.fillStyle='#b5dce9'; c.fillText(zone.name,zone.points[0][0]*w+5,zone.points[0][1]*h+15); }
             }
             const age = (telemetry.age_ms || 0) + performance.now() - receivedAt;
             if (!telemetry.stale && age < 850 && telemetry.width && telemetry.height) {
+                if(crowdMode){
+                    const map=telemetry.head_map;
+                    const headFresh=map&&Math.abs(telemetry.captured_at-map.captured_at)<1.5;
+                    const points=headFresh?map.points:(telemetry.tracks||[]).filter(t=>t.label==='person').map(t=>[(t.box[0]+t.box[2])/2,t.box[1]+(t.box[3]-t.box[1])*.12,t.confidence]);
+                    document.getElementById('crowdMapStatus').textContent=headFresh?map.count+' detected heads':'Person-position estimates';
+                    for(const point of points){const nx=point[0]/telemetry.width,ny=point[1]/telemetry.height;const red=(telemetry.crowd?.zones||[]).some(z=>z.warning_confirmed&&z.state==='critical'&&(telemetry.zones||[]).some(p=>p.id===z.zone_id&&pointInsidePolygon(nx,ny,p.points)));c.beginPath();c.arc(nx*w,ny*h,Math.max(2,Math.min(3.5,w/220)),0,Math.PI*2);c.fillStyle=red?'#ff4545':'#39f24b';c.fill();}
+                }
                 for (const t of telemetry.tracks || []) {
+                    if(crowdMode)continue;
                     const scaleX=w/telemetry.width, scaleY=h/telemetry.height;
                     const prediction = Math.min(age/1000,.15);
                     const dx=(t.motion?.[0] || 0)*prediction, dy=(t.motion?.[1] || 0)*prediction;
                     const x=Math.max(0,(t.box[0]+dx)*scaleX), y=Math.max(0,(t.box[1]+dy)*scaleY);
                     const bw=(t.box[2]-t.box[0])*scaleX, bh=(t.box[3]-t.box[1])*scaleY;
-                    const colour=t.threat_level==='HIGH'?'#f87171':t.threat_level==='MEDIUM'?'#fbbf24':'#a4f2cf';
+                    const colour=t.threat_level==='HIGH'?'#ff4545':t.threat_level==='MEDIUM'?'#fbbf24':vehicleLabels.has(t.label)?'#fde047':t.label==='person'?'#39f29a':'#7dd3fc';
                     c.strokeStyle=colour;c.lineWidth=2;c.strokeRect(x,y,bw,bh);
-                    const label=`${t.label.toUpperCase()} · ${t.person_id || 'OBJECT'} · T${t.track_id} · ${Math.round((t.confidence || 0)*100)}%`;
-                    c.font='11px system-ui';const tw=c.measureText(label).width+10;
-                    c.fillStyle='#0b141ee8';c.fillRect(x,Math.max(0,y-22),tw,20);c.fillStyle=colour;c.fillText(label,x+5,Math.max(14,y-8));
-                    if(t.active_alert) { c.fillStyle=colour;c.fillText(t.active_alert,x+4,Math.min(h-8,y+bh+15)); }
+                    c.beginPath();c.arc((t.box[0]+t.box[2])/2*scaleX,t.box[3]*scaleY,3,0,Math.PI*2);c.fillStyle=colour;c.fill();
+                    if(t.associated_person_track_id){const linked=telemetry.tracks.find(person=>person.track_id===t.associated_person_track_id);if(linked){const ax=t.centroid[0]*scaleX,ay=t.centroid[1]*scaleY,bx=linked.centroid[0]*scaleX,by=linked.centroid[1]*scaleY;c.strokeStyle='#e879f9';c.setLineDash([4,4]);c.beginPath();c.moveTo(ax,ay);c.lineTo(bx,by);c.stroke();c.setLineDash([]);c.font='10px system-ui';c.fillStyle='#f5d0fe';c.fillText(Math.round(Math.hypot(t.centroid[0]-linked.centroid[0],t.centroid[1]-linked.centroid[1]))+' px · proximity',(ax+bx)/2,(ay+by)/2);}}
+                    const label=`${t.label.toUpperCase()} · ${t.person_id ? 'P'+t.person_id.split('-').at(-1)+' · ':''}T${t.track_id} · ${Math.round((t.confidence || 0)*100)}%`;
+                    const lines=[label,attributeLabel(t),t.movement?.speed_px_s==null?'Speed: measuring…':`${t.movement.speed_px_s.toFixed(1)} px/s${t.movement.speed_m_s!=null?' · ~'+t.movement.speed_m_s+' m/s':''}`];
+                    c.font='11px system-ui';const tw=Math.min(230,w-4,Math.max(...lines.map(line=>c.measureText(line).width))+10),lx=Math.max(2,Math.min(x,w-tw));
+                    const positions=[y-53,y+bh+3,y-106,y+bh+56].map(top=>Math.max(2,Math.min(h-53,top)));
+                    const ly=positions.find(top=>!occupied.some(r=>lx<r.x+r.w && lx+tw>r.x && top<r.y+51 && top+51>r.y)) ?? positions[0];
+                    occupied.push({x:lx,y:ly,w:tw});c.fillStyle='#0b141eee';c.fillRect(lx,ly,tw,51);c.fillStyle=colour;
+                    lines.forEach((line,i)=>c.fillText(line,lx+5,ly+13+i*16,tw-10));
+                    const points=t.posture?.keypoints;
+                    if(points && age<500){c.strokeStyle='#7dd3fc';c.lineWidth=1.5;for(const [a,b] of [[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]){if(points[a][2]>.4 && points[b][2]>.4){c.beginPath();c.moveTo(points[a][0]*scaleX,points[a][1]*scaleY);c.lineTo(points[b][0]*scaleX,points[b][1]*scaleY);c.stroke();}}}
+                    if(t.active_alert) { const flag=t.label==='knife'?'DANGER: KNIFE':t.active_alert.startsWith('ABANDONED')?'ABANDONED BAG?':'RESTRICTED - CHECK NOW';c.fillStyle=colour;c.fillText(flag,x+4,Math.min(h-8,y+bh+15),Math.max(20,w-x-8)); }
                 }
             }
         }
         setTimeout(drawTracks, 1000/24);
     }
+    document.getElementById('overlayMode').onchange=event=>{document.body.dataset.overlayMode=event.target.value;};
     pollTracks(); drawTracks();
 
+    function pointInsidePolygon(x,y,points){let inside=false;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[i],b=points[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
     function imageBounds() {
         const rect = videoElement.getBoundingClientRect();
         const ratio = videoElement.naturalWidth / videoElement.naturalHeight || 4/3;
@@ -422,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedEvent=id;
             const data=await request('/api/events/'+id);
             const event=data.event || data;
-            document.getElementById('eventTitle').textContent=event.alert_type+' · '+event.status;
+            document.getElementById('eventTitle').textContent=(event.display_label||event.alert_type)+' · '+event.status;
             document.getElementById('eventDetails').textContent=JSON.stringify(event,null,2);
             const evidence=document.getElementById('eventEvidence');
             evidence.hidden=!event.evidence_url;
@@ -463,12 +501,69 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!telemetry || telemetry.stale)return;
         const r=imageBounds(), x=(e.clientX-r.left)/r.width*telemetry.width,y=(e.clientY-r.top)/r.height*telemetry.height;
         const track=(telemetry.tracks||[]).find(t=>x>=t.box[0] && x<=t.box[2] && y>=t.box[1] && y<=t.box[3]);
-        if(track)document.getElementById('trackDetails').textContent=JSON.stringify(track);
+        if(track)selectTrack(track);
     };
+    function attributeLabel(track){
+        const colours=track.colours || {};
+        if(track.label==='person')return `${(track.posture?.label || 'unknown').toUpperCase()} · top ${colours.upper_clothing?.name || '?'} / bottom ${colours.lower_clothing?.name || '?'}`;
+        return `Colour: ${colours.object?.name || 'unknown'} · ${track.motion_state || 'measuring'}`;
+    }
+    function motionLabel(track){
+        const motion=track.movement;
+        if(motion?.speed_px_s==null)return 'Speed: measuring…';
+        return `${motion.speed_px_s.toFixed(1)} px/s${motion.speed_m_s!=null?' · ~'+motion.speed_m_s.toFixed(2)+' m/s':''} · v(${motion.velocity_px_s.x}, ${motion.velocity_px_s.y}) px/s`;
+    }
+    function selectTrack(track){
+        selectedPersonId=track.person_id || null;document.getElementById('saveGenderAnnotation').disabled=!selectedPersonId;
+        document.getElementById('genderAnnotation').value=track.gender?.label || 'unspecified';
+        document.getElementById('trackDetails').textContent=[`${track.label.toUpperCase()} · Track ${track.track_id}${track.person_id?' · '+track.person_id:''}`,attributeLabel(track),motionLabel(track),`Detection confidence: ${Math.round((track.confidence||0)*100)}%`,track.person_id?'Person association: '+track.identity_association:'Object track',track.gender?.label?'Gender label: '+track.gender.label+' (operator supplied)':'Gender: not inferred',track.active_alert || 'Normal observation'].join('\n');
+        document.getElementById('annotationHint').textContent=selectedPersonId ? 'Selected '+selectedPersonId+'. Manual labels are not inferred from appearance.' : 'Select a person to enter a manual label.';
+    }
+    function updateObservations(){
+        const tracks=telemetry?.stale?[]:telemetry?.tracks || [];
+        const people=tracks.filter(t=>t.label==='person').length;
+        document.getElementById('visiblePeople').textContent=people;
+        document.getElementById('visibleVehicles').textContent=tracks.filter(t=>vehicleLabels.has(t.label)).length;
+        document.getElementById('activeWarnings').textContent=tracks.filter(t=>t.active_alert).length;
+        document.getElementById('sceneClock').textContent=telemetry?.captured_at && !telemetry.stale ? new Date(telemetry.captured_at*1000).toLocaleTimeString():'NO FRESH FRAME';
+        const source=telemetry?.camera_id+':'+telemetry?.generation;
+        if(source!==occupancySource){occupancySource=source;occupancy=[];lastOccupancyFrame=-1;}
+        if(!telemetry?.stale && telemetry?.frame_id!=null && telemetry.frame_id!==lastOccupancyFrame){lastOccupancyFrame=telemetry.frame_id;occupancy.push({time:telemetry.captured_at,count:people});if(occupancy.length>120)occupancy.shift();}
+        const max=Math.max(1,...occupancy.map(sample=>sample.count)),first=occupancy[0]?.time||0,span=Math.max(.01,(occupancy.at(-1)?.time||first)-first);
+        document.querySelector('#occupancyTrend polyline').setAttribute('points',occupancy.length?occupancy.map(sample=>`${((sample.time-first)/span*296+2).toFixed(1)},${(48-sample.count/max*44).toFixed(1)}`).join(' '):'0,48 300,48');
+        document.getElementById('occupancyRange').textContent=occupancy.length?`${people} visible now · ${Math.round(span)} seconds sampled · this source only`:'Waiting for live observations';
+        const current=[...tracks].filter(t=>t.active_alert).sort((a,b)=>(b.threat_score||0)-(a.threat_score||0))[0];
+        document.getElementById('currentAlertTitle').textContent=current?.label==='knife'?'DANGER: KNIFE DETECTED':current?.active_alert?.startsWith('ABANDONED')?'ABANDONED BAG CANDIDATE':current?'RESTRICTED ZONE WARNING':tracks.length?'Live scene clear':'Awaiting observations';
+        const badge=document.getElementById('currentPriority');badge.textContent=current?current.threat_level+' · REVIEW':'MONITORING';badge.classList.toggle('danger',current?.threat_level==='HIGH');
+        document.getElementById('currentAlertReason').textContent=current?.active_alert || 'No current warning condition in the latest processed scene.';
+        const details=document.getElementById('currentAlertDetails');details.replaceChildren();
+        for(const [label,value] of [['Camera',liveCameraName],['Time',document.getElementById('sceneClock').textContent],...(current?[['Subject',current.label+' · track '+current.track_id],['Detection confidence',Math.round(current.confidence*100)+'%'],['Visible for',(current.dwell_time||0).toFixed(1)+' s']]:[])]){const term=document.createElement('dt'),description=document.createElement('dd');term.textContent=label;description.textContent=value;details.append(term,description);}
+        const banner=document.getElementById('liveWarning'),warnings=[...new Set(tracks.filter(t=>t.active_alert).map(t=>t.active_alert))];
+        banner.hidden=!warnings.length;banner.textContent=warnings.join(' | ');banner.classList.toggle('danger',tracks.some(t=>t.threat_level==='HIGH'));
+        const rows=document.getElementById('objectsList');rows.replaceChildren();
+        if(!tracks.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.textContent='No fresh detections';tr.append(td);rows.append(tr);return;}
+        for(const track of tracks.slice(0,20)){
+            const row=document.createElement('tr');row.tabIndex=0;row.setAttribute('role','button');row.setAttribute('aria-label','Inspect '+track.label+' track '+track.track_id);
+            for(const [index,value] of [`${track.label} · T${track.track_id}${track.person_id?' · '+track.person_id:''}`,attributeLabel(track),motionLabel(track),track.active_alert || 'Normal observation'].entries()){const cell=document.createElement('td');cell.textContent=value;if(index===1){for(const [part,colour] of Object.entries(track.colours||{})){const swatch=document.createElement('span');swatch.className='colour-swatch';swatch.style.background=colourPalette[colour.name]||'repeating-linear-gradient(45deg,#64748b 0 3px,#e2e8f0 3px 6px)';swatch.title=part+': '+colour.name+' (crop estimate)';swatch.setAttribute('aria-label',swatch.title);cell.append(swatch);}}row.append(cell);}
+            row.className=track.threat_level==='HIGH'?'observation-danger':'';row.onclick=()=>selectTrack(track);row.onkeydown=e=>{if(e.key==='Enter')selectTrack(track);};rows.append(row);
+        }
+    }
+    document.getElementById('genderAnnotationForm').onsubmit=async event=>{
+        event.preventDefault();if(!selectedPersonId)return;
+        try{await request('/api/person-annotations/'+selectedPersonId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:document.getElementById('genderAnnotation').value})});toast('Operator label saved for this session');}catch(e){toast(e.message);}
+    };
+    document.getElementById('cameraSettingsForm').onsubmit=async event=>{
+        event.preventDefault();const lat=document.getElementById('cameraLatitude').value,lon=document.getElementById('cameraLongitude').value,scale=document.getElementById('cameraScale').value;
+        if((lat==='')!==(lon==='')){toast('Enter both camera latitude and longitude');return;}
+        try{await request('/api/camera/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('cameraName').value,location:lat===''?null:{latitude:Number(lat),longitude:Number(lon)},metres_per_pixel:scale===''?null:Number(scale),reference_width:currentFrameDimensions?.[0]||null,reference_height:currentFrameDimensions?.[1]||null})});toast('Camera settings saved; coordinates describe this camera');}catch(e){toast(e.message);}
+    };
+    async function refreshSummary(){if(closing)return;try{const summary=await request('/api/summary');document.getElementById('eventsToday').textContent=summary.events_today;}catch{document.getElementById('eventsToday').textContent='—';}setTimeout(refreshSummary,5000);}
+    refreshSummary();
     // One decoded frame and one latest pending frame: never build a playback queue.
     let preview, reconnect, frameMetadata, pendingFrame, decoding=false, objectUrl;
     let clockOffset=0, clockUncertainty=60000, displayed=0, dropped=0, latency=0, lastSequence=-1;
-    const metricStart=performance.now(), clientId=crypto.randomUUID();
+    let lastMetricAt=performance.now(), lastMetricDisplayed=0;
+    const clientId=crypto.randomUUID();
     async function syncClock() {
         let best=Infinity;
         for(let i=0;i<3;i++){const before=Date.now();const result=await request('/api/time');const after=Date.now();if(after-before<best){best=after-before;clockOffset=result.server_time_ms-(before+after)/2;clockUncertainty=best/2;}}
@@ -495,7 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const metricsTimer=setInterval(()=>{
         if(!displayed)return;
-        const payload={client_id:clientId,displayed_fps:displayed/Math.max(1,(performance.now()-metricStart)/1000),display_latency_ms:Math.min(60000,latency),dropped_frames:Math.min(10000000,dropped),clock_uncertainty_ms:clockUncertainty};
+        const now=performance.now(), payload={client_id:clientId,displayed_fps:(displayed-lastMetricDisplayed)/Math.max(1,(now-lastMetricAt)/1000),display_latency_ms:Math.min(60000,latency),dropped_frames:Math.min(10000000,dropped),clock_uncertainty_ms:clockUncertainty};
+        lastMetricAt=now;lastMetricDisplayed=displayed;
         document.getElementById('displayMetrics').textContent=`Displayed ${payload.displayed_fps.toFixed(1)} FPS · capture-to-display estimate ${Math.round(latency)} ms ±${Math.round(clockUncertainty)} ms clock error · ${dropped} preview frames skipped. Hardware sensor delay is unmeasured.`;
         request('/api/client-metrics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
     },3000);

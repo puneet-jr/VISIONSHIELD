@@ -23,6 +23,18 @@ class AppConfig:
     ALLOWED_ORIGINS: list[str] = field(default_factory=list)
     ACCESS_TOKEN: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     CAMERA_TOKEN: str = field(default_factory=lambda: secrets.token_urlsafe(32))
+    GUARD_TOKEN: str = field(default_factory=lambda: secrets.token_urlsafe(32))
+    MAX_CAMERA_STREAMS: int = 4
+    MAX_DETECTIONS: int = 250
+    CROWD_DEFAULT_CAPACITY: int = 20
+    ENABLE_HEAD_MAP: bool = False
+    HEAD_MAP_TILED: bool = False
+    HEAD_CONFIDENCE: float = 0.35
+    HEAD_MAP_INTERVAL_SECONDS: float = 0.6
+    CROWD_WARNING_SECONDS: float = 2.0
+    CROWD_GROWTH_WINDOW_SECONDS: float = 10.0
+    CROWD_GROWTH_THRESHOLD: float = 0.30
+    CROWD_MIN_GROWTH: int = 5
     TARGET_FPS: int = 12
     PREVIEW_FPS: int = 24
     CPU_THREADS: int = max(1, min(4, os.cpu_count() or 2))
@@ -39,8 +51,29 @@ class AppConfig:
     IDENTITY_DISTANCE_THRESHOLD: float = 0.10
     IDENTITY_MATCH_MARGIN: float = 0.04
     PERSON_CLASS: str = "person"
+    ANIMAL_CLASSES: list[str] = field(
+        default_factory=lambda: [
+            "bird",
+            "cat",
+            "dog",
+            "horse",
+            "sheep",
+            "cow",
+            "elephant",
+            "bear",
+            "zebra",
+            "giraffe",
+        ]
+    )
+    ENABLE_POSE: bool = True
+    POSE_MODEL: str = str(ROOT / "yolo11n-pose.pt")
+    POSE_INTERVAL_SECONDS: float = 0.75
+    POSE_MAX_AGE_SECONDS: float = 1.5
+    CAMERA_SETTINGS_PATH: str = str(ROOT / "data/cameras.json")
     LUGGAGE_CLASSES: list[str] = field(default_factory=lambda: ["backpack", "handbag", "suitcase"])
-    VEHICLE_CLASSES: list[str] = field(default_factory=lambda: ["car", "motorcycle", "bicycle"])
+    VEHICLE_CLASSES: list[str] = field(
+        default_factory=lambda: ["car", "motorcycle", "bicycle", "bus", "truck", "train"]
+    )
     OWNER_ATTACH_DISTANCE_PX: float = 120.0
     ASSOCIATION_SECONDS: float = 1.0
     ASSOCIATION_MIN_OBSERVATIONS: int = 3
@@ -55,6 +88,9 @@ class AppConfig:
     DEFAULT_ZONES: list[dict] = field(default_factory=list)
     ZONE_DWELL_SECONDS: float = 1.5
     ZONE_MIN_OBSERVATIONS: int = 3
+    ZONE_IMMEDIATE_WARNING: bool = True
+    KNIFE_IMMEDIATE_WARNING: bool = True
+    KNIFE_REQUIRE_PERSON: bool = False
     KNIFE_CONFIDENCE: float = 0.55
     KNIFE_CONFIRM_SECONDS: float = 1.0
     KNIFE_MIN_OBSERVATIONS: int = 3
@@ -102,6 +138,8 @@ class AppConfig:
             "ZONE_DWELL_SECONDS",
             "ALERT_COOLDOWN_SECONDS",
             "KNIFE_CONFIRM_SECONDS",
+            "POSE_INTERVAL_SECONDS",
+            "POSE_MAX_AGE_SECONDS",
             "ASSOCIATION_SECONDS",
             "OWNER_ATTACH_DISTANCE_PX",
             "ABANDONED_MIN_SEPARATION_PX",
@@ -117,6 +155,15 @@ class AppConfig:
             < 2
         ):
             raise ValueError("Confirmation requires at least two observations")
+        if not 1 <= self.MAX_CAMERA_STREAMS <= 8 or not 1 <= self.MAX_DETECTIONS <= 1000:
+            raise ValueError("Camera streams must be 1-8 and detections 1-1000")
+        if (
+            self.CROWD_WARNING_SECONDS <= 0
+            or self.CROWD_GROWTH_WINDOW_SECONDS < 5
+            or not 0 < self.CROWD_GROWTH_THRESHOLD <= 10
+            or self.CROWD_MIN_GROWTH < 1
+        ):
+            raise ValueError("Invalid crowd persistence/growth configuration")
         if self.EVIDENCE_RETENTION_DAYS < 1:
             raise ValueError(
                 "Evidence retention must be at least one day; use STORE_EVENT_IMAGES=false to disable images"

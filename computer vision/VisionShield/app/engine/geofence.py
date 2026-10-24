@@ -18,7 +18,17 @@ class GeofenceZone:
         color: str = "#ef4444",
         purpose="restricted",
         dwell_seconds=None,
+        **policy,
     ):
+        for field in (
+            "max_capacity",
+            "area_m2",
+            "density_threshold",
+            "minimum_spacing_m",
+            "ground_width_m",
+            "ground_height_m",
+        ):
+            setattr(self, field, policy.get(field))
         self.purpose = purpose
         self.dwell_seconds = config.ZONE_DWELL_SECONDS if dwell_seconds is None else dwell_seconds
         self.zone_id = zone_id
@@ -94,6 +104,17 @@ class GeofenceAnalyzer:
                 z.get("color", "#7dd3fc"),
                 z.get("purpose", "restricted"),
                 z.get("dwell_seconds"),
+                **{
+                    k: z.get(k)
+                    for k in (
+                        "max_capacity",
+                        "area_m2",
+                        "density_threshold",
+                        "minimum_spacing_m",
+                        "ground_width_m",
+                        "ground_height_m",
+                    )
+                },
             )
 
     def add_zone(
@@ -105,9 +126,10 @@ class GeofenceAnalyzer:
         color="#7dd3fc",
         purpose="restricted",
         dwell_seconds=None,
+        **policy,
     ):
         self.zones[zone_id] = GeofenceZone(
-            zone_id, name, points, severity, color, purpose, dwell_seconds
+            zone_id, name, points, severity, color, purpose, dwell_seconds, **policy
         )
         self.zone_dwell[zone_id] = {}
 
@@ -121,6 +143,17 @@ class GeofenceAnalyzer:
                 "color": z.color,
                 "purpose": z.purpose,
                 "dwell_seconds": z.dwell_seconds,
+                **{
+                    k: getattr(z, k)
+                    for k in (
+                        "max_capacity",
+                        "area_m2",
+                        "density_threshold",
+                        "minimum_spacing_m",
+                        "ground_width_m",
+                        "ground_height_m",
+                    )
+                },
             }
             for z in self.zones.values()
         ]
@@ -138,6 +171,17 @@ class GeofenceAnalyzer:
                 z["color"],
                 z.get("purpose", "restricted"),
                 z.get("dwell_seconds"),
+                **{
+                    k: z.get(k)
+                    for k in (
+                        "max_capacity",
+                        "area_m2",
+                        "density_threshold",
+                        "minimum_spacing_m",
+                        "ground_width_m",
+                        "ground_height_m",
+                    )
+                },
             )
         self.saved[self.source] = self.get_zones_dict()
         if self.storage_path:
@@ -158,7 +202,7 @@ class GeofenceAnalyzer:
                 continue
             current_inside = set()
             for track in tracks:
-                if track.label != config.PERSON_CLASS:
+                if track.label not in {config.PERSON_CLASS, *config.ANIMAL_CLASSES}:
                     continue
                 cx = (track.box[0] + track.box[2]) / 2
                 foot_y = track.box[3]
@@ -177,16 +221,19 @@ class GeofenceAnalyzer:
                 state["count"] += 1
                 self.zone_dwell[zone_id][track.track_id] = state
                 dwell = timestamp - state["entered"]
-                confirmed = (
+                immediate = config.ZONE_IMMEDIATE_WARNING
+                confirmed = immediate or (
                     dwell >= zone.dwell_seconds and state["count"] >= config.ZONE_MIN_OBSERVATIONS
                 )
-                level = zone.severity if confirmed else "MEDIUM"
+                level = "HIGH" if immediate else zone.severity if confirmed else "MEDIUM"
                 score = 80 if confirmed else 35
                 if score >= track.threat_score:
                     track.threat_score = score
                     track.threat_level = level
                     track.active_alert = (
-                        "ZONE ENTRY: " if confirmed else "ZONE ENTRY PENDING: "
+                        "RESTRICTED ZONE - CHECK IMMEDIATELY: "
+                        if confirmed
+                        else "ZONE ENTRY PENDING: "
                     ) + zone.name
                 if not confirmed:
                     continue
@@ -198,18 +245,23 @@ class GeofenceAnalyzer:
                     {
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                         "alert_type": "PERIMETER_BREACH",
-                        "severity": zone.severity,
+                        "severity": level,
                         "track_id": track.track_id,
-                        "object_label": "person",
+                        "object_label": track.label,
                         "threat_score": score,
                         "zone_id": zone_id,
-                        "explanation": f"Person #{track.track_id} remained inside operator-defined '{zone.name}' for {dwell:.1f}s. Verify authorization.",
+                        "display_label": "RESTRICTED ZONE - CHECK IMMEDIATELY",
+                        "explanation": f"Detected {track.label} #{track.track_id} inside '{zone.name}'. Check immediately. This is a configured zone warning; verify the scene.",
                         "metadata": {
                             "zone_name": zone.name,
                             "dwell_seconds": round(dwell, 1),
                             "anchor": "bottom_center",
                             "confidence": track.confidence,
-                            "required_dwell": zone.dwell_seconds,
+                            "required_dwell": 0 if immediate else zone.dwell_seconds,
+                            "observations": state["count"],
+                            "confirmation_mode": "immediate_detection"
+                            if immediate
+                            else "temporal_dwell",
                         },
                     }
                 )

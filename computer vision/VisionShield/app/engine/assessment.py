@@ -36,7 +36,7 @@ class AssessmentEngine:
                 confidence >= config.KNIFE_CONFIDENCE
                 and persistence >= config.KNIFE_CONFIRM_SECONDS
                 and count >= config.KNIFE_MIN_OBSERVATIONS
-                and metadata.get("near_person_id") is not None
+                and (not config.KNIFE_REQUIRE_PERSON or metadata.get("near_person_id") is not None)
             )
             rules = [
                 {
@@ -58,6 +58,7 @@ class AssessmentEngine:
                     "id": "person_box_proximity",
                     "person_track_id": metadata.get("near_person_id"),
                     "method": "expanded person bounding box; not hand pose",
+                    "required": config.KNIFE_REQUIRE_PERSON,
                 },
             ]
             if not valid:
@@ -90,7 +91,12 @@ class AssessmentEngine:
             )
         elif kind == "PERIMETER_BREACH":
             rules = [
-                {"id": "person_footpoint_in_zone", "zone_id": candidate.get("zone_id")},
+                {
+                    "id": "subject_footpoint_in_zone",
+                    "zone_id": candidate.get("zone_id"),
+                    "subject_class": candidate.get("object_label"),
+                    "confirmation_mode": metadata.get("confirmation_mode", "temporal_dwell"),
+                },
                 {
                     "id": "zone_dwell",
                     "observed_seconds": persistence,
@@ -99,6 +105,45 @@ class AssessmentEngine:
             ]
             uncertainty.append(
                 "Site authorization comes from operator policy, not inferred appearance."
+            )
+        elif kind in {
+            "CROWD_CAPACITY_EXCEEDED",
+            "CROWD_DENSITY_CRITICAL",
+            "CROWD_BUILDUP_WARNING",
+            "VEHICLE_INTRUSION",
+        }:
+            required = 3.0 if kind == "VEHICLE_INTRUSION" else config.CROWD_WARNING_SECONDS
+            crowd = metadata.get("crowd", {})
+            valid = persistence >= required and metadata.get("observations", 0) >= 3
+            if kind == "CROWD_CAPACITY_EXCEEDED":
+                valid = (
+                    valid
+                    and bool(crowd.get("max_capacity"))
+                    and crowd.get("count", 0) >= crowd["max_capacity"]
+                )
+            if not valid:
+                self.suppressed += 1
+                return None
+            severity = "MEDIUM" if kind == "CROWD_BUILDUP_WARNING" else "HIGH"
+            rules = [
+                {
+                    "id": "observed_crowd_policy",
+                    "zone_id": candidate.get("zone_id"),
+                    "metrics": crowd,
+                },
+                {
+                    "id": "continuous_observations",
+                    "observed_seconds": persistence,
+                    "threshold_seconds": required,
+                    "observations": metadata.get("observations"),
+                },
+            ]
+            uncertainty.extend(
+                [
+                    "Counts cover visible detections and may substantially undercount dense or occluded crowds.",
+                    "Count growth and image flow are review indicators, not validated stampede or physical-pressure prediction.",
+                    "Metres require correct ground-plane calibration; camera movement invalidates calibration.",
+                ]
             )
         elif kind == "FALL_DETECTED":
             rules = [

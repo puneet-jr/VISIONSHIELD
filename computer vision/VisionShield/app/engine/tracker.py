@@ -34,6 +34,7 @@ class TrackedObject:
         self.appearance = None
         self.reacquired = False
         self.velocity_px_s = 0.0
+        self.velocity_valid = False
         self.is_stationary = False
 
         # Association / Threat States
@@ -53,18 +54,18 @@ class TrackedObject:
         dt = max(1e-4, timestamp - self.last_seen)
         dx = new_cx - old_cx
         dy = new_cy - old_cy
-        dist = np.hypot(dx, dy)
 
-        if dt > 1.0:
+        if dt > 1.0 or timestamp <= self.last_seen:
             self.centroid_history.clear()
             self.first_seen = timestamp
             self.motion[:] = 0
+            self.velocity_valid = False
         else:
             self.motion = 0.5 * self.motion + 0.5 * np.array([dx / dt, dy / dt], dtype=np.float32)
+            self.velocity_valid = timestamp > self.last_seen
 
         # Exponential moving average for velocity
-        current_vel = dist / dt
-        self.velocity_px_s = 0.7 * self.velocity_px_s + 0.3 * current_vel
+        self.velocity_px_s = float(np.linalg.norm(self.motion))
         self.is_stationary = self.velocity_px_s < 15.0
 
         self.box = list(detection["box"])
@@ -93,6 +94,15 @@ class TrackedObject:
             "box": [round(b, 1) for b in self.box],
             "centroid": (round(self.centroid[0], 1), round(self.centroid[1], 1)),
             "velocity": round(self.velocity_px_s, 1),
+            "motion_state": ("stationary" if self.is_stationary else "moving")
+            if self.velocity_valid
+            else "measuring",
+            "movement": getattr(self, "movement", None),
+            "colours": getattr(self, "colours", {}),
+            "posture": getattr(self, "posture", None),
+            "gender": getattr(
+                self, "gender", {"label": None, "source": "not inferred from appearance"}
+            ),
             "motion": [round(float(v), 1) for v in self.motion],
             "confidence": self.confidence,
             "reacquired": self.reacquired,

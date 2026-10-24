@@ -92,7 +92,12 @@ class ApiTests(unittest.TestCase):
     def test_pages_pairing_and_input_validation(self):
         client = TestClient(app)
         self.assertEqual(client.get("/").status_code, 200)
-        self.assertEqual(client.get("/api/qr").headers["content-type"], "image/png")
+        with patch.object(config,'PUBLIC_BASE_URL',''):
+            self.assertEqual(client.get('/api/qr').status_code,503)
+            self.assertEqual(client.get('/api/connection').status_code,503)
+        with patch.object(config,'PUBLIC_BASE_URL','https://paired.example.test'):
+            self.assertEqual(client.get("/api/qr").headers["content-type"], "image/png")
+            self.assertTrue(client.get('/api/connection').json()['phone_url'].startswith('https://paired.example.test/phone#'))
         self.assertEqual(client.get("/api/events?limit=-1").status_code, 422)
         self.assertEqual(
             client.post(

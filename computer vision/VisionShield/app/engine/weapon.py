@@ -18,6 +18,10 @@ class WeaponAnalyzer:
         for item in tracks:
             if item.label != "knife":
                 continue
+            if config.KNIFE_IMMEDIATE_WARNING:
+                item.threat_level = "HIGH"
+                item.threat_score = max(item.threat_score, 85)
+                item.active_alert = "DANGER - KNIFE DETECTED: CHECK IMMEDIATELY (UNCONFIRMED)"
             if item.confidence < config.KNIFE_CONFIDENCE:
                 self.observations.pop(item.track_id, None)
                 continue
@@ -47,30 +51,33 @@ class WeaponAnalyzer:
             old["count"] += 1
             old["last"] = timestamp
             self.observations[item.track_id] = old
-            item.threat_level = "MEDIUM"
+            item.threat_level = "HIGH" if config.KNIFE_IMMEDIATE_WARNING else "MEDIUM"
             item.threat_score = max(item.threat_score, 45)
-            item.active_alert = "KNIFE CANDIDATE - VERIFY"
+            if not config.KNIFE_IMMEDIATE_WARNING:
+                item.active_alert = "KNIFE CANDIDATE - VERIFY"
             confirmed = (
                 old["count"] >= config.KNIFE_MIN_OBSERVATIONS
                 and timestamp - old["first"] >= config.KNIFE_CONFIRM_SECONDS
             )
-            if not confirmed or person_id is None:
+            if not confirmed or (config.KNIFE_REQUIRE_PERSON and person_id is None):
                 continue
             item.threat_level = "HIGH"
             item.threat_score = max(item.threat_score, 85)
-            item.active_alert = "POSSIBLE KNIFE NEAR PERSON - VERIFY"
+            item.active_alert = "DANGER - KNIFE DETECTED: CHECK IMMEDIATELY"
             events.append(
                 {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "alert_type": "POSSIBLE_WEAPON",
+                    "display_label": "DANGER - KNIFE DETECTED",
                     "severity": "HIGH",
                     "track_id": item.track_id,
                     "object_label": "knife",
                     "threat_score": 85,
-                    "explanation": "Repeated knife detections near a person's bounding box. Verify the scene; possession, hand contact and intent are not established.",
+                    "explanation": "Repeated knife detections. Check immediately; the model can be wrong. Possession, hand contact and intent are not established.",
                     "metadata": {
                         "confidence": round(item.confidence, 3),
                         "near_person_id": person_id,
+                        "person_required": config.KNIFE_REQUIRE_PERSON,
                         "observations": old["count"],
                         "duration_seconds": round(timestamp - old["first"], 2),
                     },

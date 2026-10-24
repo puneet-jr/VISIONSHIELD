@@ -1,0 +1,165 @@
+{
+  "dataset": "Mall, fixed evenly spaced 24/2000 frames",
+  "source": "https://personal.ie.cuhk.edu.hk/~ccloy/downloads_mall_dataset.html",
+  "license": "research/noncommercial; cite original authors",
+  "model": "yolo11s.pt",
+  "backend": "onnx-cpu",
+  "trained_on_this_dataset": false,
+  "sample_size": 24,
+  "count_mae": 18.875,
+  "count_rmse": 20.026024734496527,
+  "count_bias": -18.875,
+  "samples": [
+    {
+      "frame": 1,
+      "annotated_heads": 29,
+      "visible_person_detections": 12,
+      "error": -17
+    },
+    {
+      "frame": 87,
+      "annotated_heads": 16,
+      "visible_person_detections": 10,
+      "error": -6
+    },
+    {
+      "frame": 174,
+      "annotated_heads": 18,
+      "visible_person_detections": 10,
+      "error": -8
+    },
+    {
+      "frame": 261,
+      "annotated_heads": 23,
+      "visible_person_detections": 10,
+      "error": -13
+    },
+    {
+      "frame": 348,
+      "annotated_heads": 31,
+      "visible_person_detections": 12,
+      "error": -19
+    },
+    {
+      "frame": 435,
+      "annotated_heads": 43,
+      "visible_person_detections": 15,
+      "error": -28
+    },
+    {
+      "frame": 522,
+      "annotated_heads": 33,
+      "visible_person_detections": 16,
+      "error": -17
+    },
+    {
+      "frame": 609,
+      "annotated_heads": 40,
+      "visible_person_detections": 11,
+      "error": -29
+    },
+    {
+      "frame": 696,
+      "annotated_heads": 32,
+      "visible_person_detections": 15,
+      "error": -17
+    },
+    {
+      "frame": 783,
+      "annotated_heads": 36,
+      "visible_person_detections": 15,
+      "error": -21
+    },
+    {
+      "frame": 870,
+      "annotated_heads": 35,
+      "visible_person_detections": 15,
+      "error": -20
+    },
+    {
+      "frame": 957,
+      "annotated_heads": 45,
+      "visible_person_detections": 13,
+      "error": -32
+    },
+    {
+      "frame": 1043,
+      "annotated_heads": 31,
+      "visible_person_detections": 16,
+      "error": -15
+    },
+    {
+      "frame": 1130,
+      "annotated_heads": 30,
+      "visible_person_detections": 13,
+      "error": -17
+    },
+    {
+      "frame": 1217,
+      "annotated_heads": 23,
+      "visible_person_detections": 9,
+      "error": -14
+    },
+    {
+      "frame": 1304,
+      "annotated_heads": 27,
+      "visible_person_detections": 13,
+      "error": -14
+    },
+    {
+      "frame": 1391,
+      "annotated_heads": 30,
+      "visible_person_detections": 13,
+      "error": -17
+    },
+    {
+      "frame": 1478,
+      "annotated_heads": 26,
+      "visible_person_detections": 12,
+      "error": -14
+    },
+    {
+      "frame": 1565,
+      "annotated_heads": 33,
+      "visible_person_detections": 11,
+      "error": -22
+    },
+    {
+      "frame": 1652,
+      "annotated_heads": 47,
+      "visible_person_detections": 13,
+      "error": -34
+    },
+    {
+      "frame": 1739,
+      "annotated_heads": 30,
+      "visible_person_detections": 9,
+      "error": -21
+    },
+    {
+      "frame": 1826,
+      "annotated_heads": 32,
+      "visible_person_detections": 9,
+      "error": -23
+    },
+    {
+      "frame": 1913,
+      "annotated_heads": 35,
+      "visible_person_detections": 14,
+      "error": -21
+    },
+    {
+      "frame": 2000,
+      "annotated_heads": 26,
+      "visible_person_detections": 12,
+      "error": -14
+    }
+  ],
+  "limitations": [
+    "Sparse single-scene sample, not independent multi-scene benchmark.",
+    "Head-point counts compared with whole-image person detections; head and full-body definitions differ.",
+    "Occlusion and small people cause undercounting; unsuitable for guaranteed attendance or life-safety capacity measurement.",
+    "Slideshow uses sampled frames at artificial timing; not valid for motion or buildup evaluation."
+  ],
+  "recording": "data\\recordings\\Mall-counting-research.avi"
+}

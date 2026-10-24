@@ -96,11 +96,12 @@ class SpatioTemporalAnalyzer:
                 continue
             item.threat_level = "MEDIUM"
             item.threat_score = 55
-            item.active_alert = "UNATTENDED OBJECT CANDIDATE - REVIEW"
+            item.active_alert = "ABANDONED BAG (CANDIDATE) - CHECK"
             events.append(
                 {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "alert_type": "UNATTENDED_OBJECT_CANDIDATE",
+                    "display_label": "ABANDONED BAG (CANDIDATE) - CHECK",
                     "severity": "MEDIUM",
                     "track_id": item.track_id,
                     "object_label": item.label,

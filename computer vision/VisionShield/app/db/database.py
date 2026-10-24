@@ -269,6 +269,26 @@ class Database:
         with self._get_connection() as conn:
             return [self._public_event(row) for row in conn.execute(query, (*arguments, limit))]
 
+    def event_summary(self):
+        start = (
+            datetime.now(timezone.utc)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .timestamp()
+        )
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT status,COUNT(*) AS count FROM security_events WHERE COALESCE(occurred_at,CAST(strftime('%s',created_at) AS REAL))>=? GROUP BY status",
+                (start,),
+            ).fetchall()
+        counts = {row["status"]: row["count"] for row in rows}
+        return {
+            "date_utc": datetime.now(timezone.utc).date().isoformat(),
+            "events_today": sum(counts.values()),
+            "new": counts.get("new", 0),
+            "acknowledged": counts.get("acknowledged", 0),
+            "false_positive": counts.get("false_positive", 0),
+        }
+
     def get_recent_incidents(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Fetch latest tactical incident dossiers."""
         with self._get_connection() as conn:

@@ -82,7 +82,7 @@ class AcceleratedYOLO:
         )
         detections = []
         h, w = shape
-        for index in np.asarray(indices, dtype=int).reshape(-1)[:40]:
+        for index in np.asarray(indices, dtype=int).reshape(-1)[:self.config.MAX_DETECTIONS]:
             x, y, bw, bh = map(float, boxes[index])
             x1, y1 = max(0.0, x), max(0.0, y)
             x2, y2 = min(float(w), x + bw), min(float(h), y + bh)

@@ -30,10 +30,10 @@
     },
     {
       "scenario": "zone_brief",
-      "expected": null,
-      "actual": null,
-      "events": 0,
-      "first_alert_seconds": null,
+      "expected": "PERIMETER_BREACH",
+      "actual": "PERIMETER_BREACH",
+      "events": 1,
+      "first_alert_seconds": 0.0,
       "matches_expectation": true,
       "simulated_duration_seconds": 10
     },
@@ -42,7 +42,7 @@
       "expected": "PERIMETER_BREACH",
       "actual": "PERIMETER_BREACH",
       "events": 1,
-      "first_alert_seconds": 1.5,
+      "first_alert_seconds": 0.0,
       "matches_expectation": true,
       "simulated_duration_seconds": 10
     },
@@ -75,10 +75,10 @@
     },
     {
       "scenario": "knife_far_from_person",
-      "expected": null,
-      "actual": null,
-      "events": 0,
-      "first_alert_seconds": null,
+      "expected": "POSSIBLE_WEAPON",
+      "actual": "POSSIBLE_WEAPON",
+      "events": 1,
+      "first_alert_seconds": 1.0,
       "matches_expectation": true,
       "simulated_duration_seconds": 10
     },
@@ -94,7 +94,7 @@
   ],
   "per_class": {
     "PERIMETER_BREACH": {
-      "tp": 1,
+      "tp": 2,
       "fp": 0,
       "fn": 0,
       "precision": 1.0,
@@ -102,7 +102,7 @@
       "F1": 1.0
     },
     "POSSIBLE_WEAPON": {
-      "tp": 1,
+      "tp": 2,
       "fp": 0,
       "fn": 0,
       "precision": 1.0,
@@ -119,12 +119,12 @@
     }
   },
   "confusion": {
-    "NONE -> NONE": 7,
+    "NONE -> NONE": 5,
     "UNATTENDED_OBJECT_CANDIDATE -> UNATTENDED_OBJECT_CANDIDATE": 1,
-    "PERIMETER_BREACH -> PERIMETER_BREACH": 1,
-    "POSSIBLE_WEAPON -> POSSIBLE_WEAPON": 1
+    "PERIMETER_BREACH -> PERIMETER_BREACH": 2,
+    "POSSIBLE_WEAPON -> POSSIBLE_WEAPON": 2
   },
-  "negative_simulated_seconds": 70,
+  "negative_simulated_seconds": 50,
   "false_alarms_per_simulated_hour": 0.0,
   "limitations": "Artificial boxes and short scripted durations verify gates only. No real-world false-alarm rate, ownership, carrying or intent is measured."
 }

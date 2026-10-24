@@ -1,0 +1,13 @@
+{
+  "unit_tests": {
+    "passed": 67,
+    "failed": 0
+  },
+  "lint": "ruff check app scripts tests passed",
+  "existing_browser_regression": "passed",
+  "crowd_browser": "passed desktop/mobile, no overflow or runtime errors",
+  "remote_transport": "passed two simultaneous HTTPS/WSS camera sources and guard permissions",
+  "physical_phone_rehearsal": "not performed",
+  "crowd_weights_trained": false,
+  "dense_counting_limitation": "Mall 24-frame frozen-model MAE 18.875; not validated dense-crowd attendance"
+}

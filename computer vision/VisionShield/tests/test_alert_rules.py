@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+from app.config import config
 from app.engine.tracker import TrackedObject
 from app.engine.geofence import GeofenceAnalyzer
 from app.engine.weapon import WeaponAnalyzer
@@ -24,6 +26,11 @@ def track(tid, label, box, confidence=0.9):
 
 
 class ZoneTests(unittest.TestCase):
+    def setUp(self):
+        setting = patch.object(config, "ZONE_IMMEDIATE_WARNING", False)
+        setting.start()
+        self.addCleanup(setting.stop)
+
     def engine(self):
         engine = GeofenceAnalyzer()
         engine.add_zone("door", "Staff doorway", [[0.5, 0.5], [0.9, 0.5], [0.9, 0.95], [0.5, 0.95]])
@@ -79,6 +86,12 @@ class ZoneTests(unittest.TestCase):
 
 
 class KnifeTests(unittest.TestCase):
+    def setUp(self):
+        for name, value in [("KNIFE_IMMEDIATE_WARNING", False), ("KNIFE_REQUIRE_PERSON", True)]:
+            setting = patch.object(config, name, value)
+            setting.start()
+            self.addCleanup(setting.stop)
+
     def test_persistent_near_person_candidate(self):
         engine = WeaponAnalyzer()
         person = track(1, "person", [10, 10, 100, 190])

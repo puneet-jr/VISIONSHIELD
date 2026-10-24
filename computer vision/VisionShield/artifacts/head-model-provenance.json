@@ -1,0 +1,12 @@
+{
+  "source_sha256": "1467b10e30a05be6a05950190e5efe30b50681270cb7baf6115ec96806b25964",
+  "graph_sha256": "0b513b273332858656727012363456023bd37a62ea2fad441cba4e91803056e1",
+  "names": {
+    "0": "head"
+  },
+  "source": "https://huggingface.co/wesjos/YOLO-head-detection/tree/7f2ac50ed77e157d63470602f8333c5f89646a8c",
+  "revision": "7f2ac50ed77e157d63470602f8333c5f89646a8c",
+  "license": "AGPL-3.0",
+  "training": "Publisher reports approximately 15000 images; dataset identity/splits not disclosed. No local crowd training claimed.",
+  "export": "float32 dynamic ONNX opset17"
+}

@@ -1,0 +1,11 @@
+{
+  "overlay": "Crowd dots default; detailed boxes, attributes, IDs and skeleton labels opt-in",
+  "unit_tests": {
+    "passed": 71,
+    "failed": 0
+  },
+  "browser": "Two camera streams; desktop/mobile layouts, no JS errors; default draws zero label panels; detailed toggle restores them; confirmed capacity red zone",
+  "head_model_status": "experimental, disabled; tested candidates undercounted more than body baseline",
+  "head_point_source": "Model boxes only when explicitly enabled; default person positions are labelled estimates",
+  "counts_not_fabricated": true
+}

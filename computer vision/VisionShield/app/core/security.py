@@ -18,6 +18,8 @@ def role(connection):
         return "operator"
     if supplied and secrets.compare_digest(supplied, config.CAMERA_TOKEN):
         return "camera"
+    if supplied and secrets.compare_digest(supplied, config.GUARD_TOKEN):
+        return "guard"
     if config.TRUST_LOCAL_DASHBOARD and config.DEPLOYMENT_MODE == "demo":
         host = connection.url.hostname or ""
         peer = connection.client.host if connection.client else ""

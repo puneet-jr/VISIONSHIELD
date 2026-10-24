@@ -17,9 +17,11 @@ from app.core.event_hub import event_hub
 from app.ingestion.video_stream import video_manager
 from app.engine.pipeline import pipeline
 from app.web.routes import router
+from app.web.crowd_routes import router as crowd_router
 from app.db.database import db
 from app.core.observability import metrics
 from app.core.logging_config import configure_logging
+from app.core.streams import streams
 
 configure_logging()
 logger = logging.getLogger("VisionShield.Main")
@@ -34,11 +36,12 @@ def _surveillance_worker():
     logger.info("Background Computer Vision processing worker started.")
     while _pipeline_running:
         started = time.perf_counter()
-        try:
-            with pipeline.lock:
-                pipeline.run_cycle()
-        except Exception as e:
-            logger.error(f"Error in pipeline run cycle: {e}")
+        for context in streams.all():
+            try:
+                with context.pipeline.lock:
+                    context.pipeline.run_cycle()
+            except Exception:
+                logger.exception("Camera %s processing failed", context.key)
         time.sleep(max(0.005, 1 / config.TARGET_FPS - (time.perf_counter() - started)))
 
 
@@ -83,8 +86,7 @@ async def lifespan(app: FastAPI):
     _pipeline_running = False
     if _pipeline_thread:
         await asyncio.to_thread(_pipeline_thread.join, 10.0)
-    await asyncio.to_thread(video_manager.stop)
-    pipeline.executor.shutdown(wait=False, cancel_futures=True)
+    await asyncio.to_thread(streams.close)
     event_hub.bind(None)
     pipeline.identities.clear()
     logger.info("VisionShield Engine cleanly stopped.")
@@ -104,7 +106,7 @@ if config.ALLOWED_ORIGINS:
         CORSMiddleware,
         allow_origins=config.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "Authorization"],
     )
 
@@ -115,6 +117,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Include Web and API routes
 app.include_router(router)
+app.include_router(crowd_router)
 
 
 @app.middleware("http")
@@ -122,8 +125,17 @@ async def access_control(request, call_next):
     from app.core.security import role, origin_allowed
     from fastapi.responses import JSONResponse
 
-    public = {"/phone", "/login", "/api/pair", "/static/js/mobile.js", "/health/live"}
-    camera_paths = {"/api/upload_frame", "/api/time", "/api/camera/status"}
+    public = {
+        "/phone",
+        "/guard",
+        "/login",
+        "/api/pair",
+        "/static/js/mobile.js",
+        "/static/js/guard.js",
+        "/static/css/guard.css",
+        "/health/live",
+    }
+    camera_paths = {"/api/upload_frame", "/api/time", "/api/camera/status", "/api/camera/location"}
     access = role(request)
     if request.url.path not in public:
         if access is None:
@@ -142,6 +154,22 @@ async def access_control(request, call_next):
                 },
                 status_code=403,
             )
+        if access == "guard":
+            path = request.url.path
+            readable = request.method in {"GET", "HEAD"} and (
+                path in {"/api/streams", "/api/time", "/api/datasets", "/api/events"}
+                or path.startswith("/api/events/")
+            )
+            acknowledge = (
+                request.method == "PATCH"
+                and path.startswith("/api/events/")
+                and path.count("/") == 3
+            )
+            if not (readable or acknowledge):
+                return JSONResponse(
+                    {"detail": "Guard access permits monitoring and acknowledgement only"},
+                    status_code=403,
+                )
     if request.method not in {"GET", "HEAD", "OPTIONS"} and not origin_allowed(request):
         return JSONResponse(
             {"detail": "Origin is not allowed", "code": "ORIGIN_FORBIDDEN"},

@@ -1,0 +1,18 @@
+{
+  "test": "real HTTPS/WSS two camera transports and guard role; photo/blank fixtures, not physical phones",
+  "passed": true,
+  "public_origin": "https://uncertainty-dance-sur-moral.trycloudflare.com",
+  "acknowledged_frames": [
+    7,
+    11
+  ],
+  "concurrent_fresh_cameras": 2,
+  "photo_visible_people": 6,
+  "blank_visible_people": 0,
+  "guard_preview_jpeg": true,
+  "guard_admin_forbidden": true,
+  "camera_evidence_forbidden": true,
+  "camera_specific_gps_transport": true,
+  "real_detection_capacity_event": true,
+  "guard_acknowledged": true
+}

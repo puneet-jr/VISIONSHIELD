@@ -1,3 +1,5 @@
+> Crowd operations update: [camera/guard setup, zone calibration, actual datasets and limits](CROWD_GUIDE.md). New overview: **http://localhost:8000/guard**. Dense-crowd counts are not validated attendance; see the measured Mall undercount.
+
 # VisionShield
 
 A single-process surveillance research prototype: real YOLO object detection, browser phone ingestion, anonymous motion/appearance tracking, operator-defined zones, temporal review rules and protected event evidence. Detections can be wrong and require human review. Red means a confirmed configured rule, not proof of real danger.
@@ -38,8 +40,10 @@ Binding 0.0.0.0 accepts network connections; internet routing still requires a t
 ## Review rules and privacy
 
 - Track IDs describe tracking segments. Anonymous P-<session>-<number> person IDs can link segments using motion, torso colour, timestamps and similarity margins. Gap matches are explicitly uncertain. No face recognition, learned ReID or cross-camera identification is enabled. Descriptors expire from memory after 120 seconds by default and are never written to SQLite.
-- Restricted zones use person footpoints, configurable dwell (default 1.5 seconds) and at least three observations. Bag monitoring zones produce MEDIUM unattended-object candidates after six stationary seconds without a nearby associated person. Bags outside monitoring zones are not automatically alerts.
-- Knife warnings need confidence >=0.55, at least three observations over one second and person-box proximity. Knife recall is limited. Proximity does not prove holding, ownership or intent. Firearm/violence detection is unsupported.
+- Restricted zones warn red immediately for people and supported COCO animals using bottom-centre position. Set ZONE_IMMEDIATE_WARNING=false to use the configurable dwell/observation mode instead. Bag-monitor zones show **ABANDONED BAG (CANDIDATE) — CHECK** after six stationary seconds without a nearby associated person; bags outside monitor zones are not automatically alerts.
+- Every visible knife gets an immediate red **DANGER — KNIFE DETECTED: CHECK IMMEDIATELY (UNCONFIRMED)** warning. Saved knife events still need confidence >=0.55 and at least three observations over one second. A nearby person is optional by default (KNIFE_REQUIRE_PERSON=false). Knife recall is limited; danger wording is an operator warning, not proof of intent. Firearm/violence detection remains unsupported.
+- Posture uses official YOLO11n-pose COCO keypoints at low frequency plus joint-angle rules and temporal smoothing. It displays sitting, standing or unknown; body occlusion/crouching/perspective can prevent a reliable label. Clothing upper/lower and object colours are crop estimates, affected by lighting/background.
+- Movement shows speed and x/y velocity in pixels/second. Optional camera-scale calibration enables approximate m/s on the reference plane; it is not perspective-correct. Camera position uses operator-entered installation coordinates or an explicit phone GPS permission action, never server/IP geolocation. Optional gender labels are operator-entered and session-scoped; gender is not inferred from appearance.
 - Fall and loitering heuristics are disabled by default. Narrative reports are also disabled. ENABLE_AI_DOSSIER=true enables offline summaries; additionally setting GEMINI_API_KEY enables optional Google summaries and transmits incident thumbnails. External Gemini calls were not tested here.
 - Events include rules, confidence, duration, camera/track/person IDs, uncertainty and protected JPEG evidence. The UI supports filters, acknowledgement, false-positive review and deletion. Defaults retain seven days and at most 2,000 events, pruned on startup and hourly. STORE_EVENT_IMAGES=false disables saved thumbnails. Continuous live video is not recorded automatically.
 
@@ -55,6 +59,8 @@ node tests/mobile_transport_test.cjs
 ~~~
 
 With the server running, node tests/browser_smoke.cjs exercises Chromium desktop/mobile layouts, zone controls, simulated camera transport, event review/evidence/deletion and recorded playback. Set CHROME_PATH if needed. With --remote running, use the venv Python to run tests/remote_smoke.py http://localhost:8000 for public HTTPS/WSS role checks. Synthetic fixtures are labelled and do not measure real-world accuracy.
+
+Run scripts/verify_pose.py with the venv Python before the browser smoke test to acquire its official example photo and check actual pose inference. The browser test also exercises posture/colour/motion display, immediate warnings, manual annotation and a simulated GPS permission result. Physical phone GPS acceptance remains manual.
 
 Install requirements-dev.txt for formatting/linting, then run the venv Python with -E -m ruff format --check app scripts tests run.py and -E -m ruff check app scripts tests run.py.
 
