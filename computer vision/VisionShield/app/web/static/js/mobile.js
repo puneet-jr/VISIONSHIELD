@@ -32,10 +32,14 @@ function pump() {
     if (encoding || pending.length >= 3 || active.bufferedAmount > 220000) return;
     const video = $('preview'), canvas = $('capture');
     if (!video.videoWidth) return;
-    const targetWidth = Math.min(Number($('quality').value), video.videoWidth);
-    const targetHeight = Math.round(targetWidth * video.videoHeight/video.videoWidth);
+    const angle=Number($('rotation')?.value||0),swapped=angle%180!==0;
+    const sourceWidth=swapped?video.videoHeight:video.videoWidth,sourceHeight=swapped?video.videoWidth:video.videoHeight;
+    const scale=Math.min(1,Number($('quality').value)/Math.max(sourceWidth,sourceHeight));
+    const targetWidth=Math.round(sourceWidth*scale),targetHeight=Math.round(sourceHeight*scale);
     if(canvas.width!==targetWidth||canvas.height!==targetHeight){canvas.width=targetWidth;canvas.height=targetHeight;}
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const ctx=canvas.getContext('2d');
+    if(angle){ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);ctx.drawImage(video,-video.videoWidth*scale/2,-video.videoHeight*scale/2,video.videoWidth*scale,video.videoHeight*scale);ctx.restore();}
+    else ctx.drawImage(video,0,0,canvas.width,canvas.height);
     const capturedAt=(Date.now()+clockOffset)/1000;
     encoding = true;
     canvas.toBlob(blob => {
@@ -105,7 +109,8 @@ $('start').onclick = async () => {
     } catch (error) { await stop(); status(error.message); }
 };
 $('stop').onclick = stop;
-$('facing').onchange=async()=>{if(running){await stop();setTimeout(()=>$('start').click(),300);}};
+$('facing').onchange=async()=>{if(running){await stop();setTimeout(()=>$('start').click(),750);}};
+if($('rotation'))$('rotation').onchange=async()=>{if(running){await stop();setTimeout(()=>$('start').click(),750);}};
 $('shareLocation').onclick=()=>{
     if(!running)return;
     if(!navigator.geolocation){$('locationStatus').textContent='GPS is unavailable in this browser.';return;}

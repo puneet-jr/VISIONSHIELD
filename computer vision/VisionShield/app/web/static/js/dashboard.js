@@ -409,10 +409,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const age = (telemetry.age_ms || 0) + performance.now() - receivedAt;
             if (!telemetry.stale && age < 850 && telemetry.width && telemetry.height) {
                 if(crowdMode){
-                    const map=telemetry.head_map;
-                    const headFresh=map&&Math.abs(telemetry.captured_at-map.captured_at)<1.5;
-                    const points=headFresh?map.points:(telemetry.tracks||[]).filter(t=>t.label==='person').map(t=>[(t.box[0]+t.box[2])/2,t.box[1]+(t.box[3]-t.box[1])*.12,t.confidence]);
-                    document.getElementById('crowdMapStatus').textContent=headFresh?map.count+' detected heads':'Person-position estimates';
+                    const map=telemetry.person_map;
+                    const points=map?map.points:(telemetry.tracks||[]).filter(t=>t.label==='person').map(t=>[(t.box[0]+t.box[2])/2,t.box[1]+(t.box[3]-t.box[1])*.12,t.confidence]);
+                    document.getElementById('crowdMapStatus').textContent='Detected people: '+points.length+' (position estimates)';
                     for(const point of points){const nx=point[0]/telemetry.width,ny=point[1]/telemetry.height;const red=(telemetry.crowd?.zones||[]).some(z=>z.warning_confirmed&&z.state==='critical'&&(telemetry.zones||[]).some(p=>p.id===z.zone_id&&pointInsidePolygon(nx,ny,p.points)));c.beginPath();c.arc(nx*w,ny*h,Math.max(2,Math.min(3.5,w/220)),0,Math.PI*2);c.fillStyle=red?'#ff4545':'#39f24b';c.fill();}
                 }
                 for (const t of telemetry.tracks || []) {
@@ -521,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function updateObservations(){
         const tracks=telemetry?.stale?[]:telemetry?.tracks || [];
-        const people=tracks.filter(t=>t.label==='person').length;
+        const people=telemetry?.stale?0:telemetry?.person_map?.count??tracks.filter(t=>t.label==='person').length;
         document.getElementById('visiblePeople').textContent=people;
         document.getElementById('visibleVehicles').textContent=tracks.filter(t=>vehicleLabels.has(t.label)).length;
         document.getElementById('activeWarnings').textContent=tracks.filter(t=>t.active_alert).length;

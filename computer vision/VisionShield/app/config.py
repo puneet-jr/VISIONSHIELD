@@ -31,6 +31,9 @@ class AppConfig:
     HEAD_MAP_TILED: bool = False
     HEAD_CONFIDENCE: float = 0.35
     HEAD_MAP_INTERVAL_SECONDS: float = 0.6
+    ENABLE_PERSON_REFINEMENT: bool = True
+    PERSON_TILE_INPUT_SIZE: int = 512
+    AUTO_ORIENT_PHONE: bool = True
     CROWD_WARNING_SECONDS: float = 2.0
     CROWD_GROWTH_WINDOW_SECONDS: float = 10.0
     CROWD_GROWTH_THRESHOLD: float = 0.30

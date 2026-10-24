@@ -17,6 +17,8 @@ class VideoStreamManager:
         self.source_type = "webcam"
         self.source_path = "0"
         self.camera_id = "webcam:0"
+        self.phone_rotation=0
+        self.orientation_checked=False
         self.preview_metadata = {}
         self.source_frames = 0
         self.preview_skipped = 0
@@ -53,6 +55,8 @@ class VideoStreamManager:
             self.stop()
             with self.lock:
                 self.generation += 1
+                self.phone_rotation=0
+                self.orientation_checked=False
                 self.latest_frame = self.jpeg = None
                 self.camera_online = False
                 self.fps = 0.0
@@ -139,7 +143,20 @@ class VideoStreamManager:
                 return False
             if self.source_type != "phone_upload":
                 self.start("phone_upload")
+            if self.phone_rotation:
+                frame=cv2.rotate(frame,cv2.ROTATE_90_CLOCKWISE if self.phone_rotation==90 else cv2.ROTATE_90_COUNTERCLOCKWISE)
             self._store(frame, captured_at=captured_at)
+            return True
+
+    def set_phone_rotation(self,angle,expected_generation):
+        with self.source_lock,self.lock:
+            if self.generation!=expected_generation or self.source_type!='phone_upload':return False
+            self.orientation_checked=True
+            if angle and not self.phone_rotation:
+                self.phone_rotation=angle
+                if self.latest_frame is not None:
+                    self.latest_frame=cv2.rotate(self.latest_frame,cv2.ROTATE_90_CLOCKWISE if angle==90 else cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    self.frame_id+=1;self.frame_ready.set()
             return True
 
     def get_raw_frame(self):

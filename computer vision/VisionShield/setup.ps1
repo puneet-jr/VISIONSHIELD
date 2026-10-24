@@ -18,4 +18,6 @@ foreach ($weight in @('yolo11s.pt', 'yolo11n.pt', 'yolo11n-pose.pt')) {
 & ./.venv/Scripts/python.exe -E -m pip check
 & ./.venv/Scripts/python.exe -E scripts/optimize_model.py
 if ($LASTEXITCODE -ne 0) { throw 'Model optimization failed. PyTorch fallback remains available.' }
+& ./.venv/Scripts/python.exe -E scripts/optimize_model.py --model yolo11n.pt
+if ($LASTEXITCODE -ne 0) { throw 'Person-refinement model export failed.' }
 Write-Host 'Ready. Run: .\.venv\Scripts\python.exe -E run.py --remote'

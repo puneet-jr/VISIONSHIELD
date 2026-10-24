@@ -29,6 +29,8 @@ from app.engine.attributes import describe_colours
 from app.engine.posture import PoseAnalyzer
 from app.engine.crowd import CrowdDynamicsAnalyzer
 from app.engine.head_map import head_detector
+from app.engine.person_refinement import person_refiner
+from app.engine.orientation import orient_phone
 
 logger = logging.getLogger("VisionShield.Pipeline")
 
@@ -131,6 +133,15 @@ class SurveillancePipeline:
         # 1. Object Detection
         started = time.perf_counter()
         detections = self.detector.detect(frame) if self.video.camera_online else []
+        if self.persist and config.AUTO_ORIENT_PHONE and self.video.source_type=='phone_upload' and not self.video.orientation_checked and frame.std()>10:
+            angle,oriented,proposals=orient_phone(frame,detections,self.detector.detect)
+            if self.video.set_phone_rotation(angle,generation):
+                frame=oriented;detections=proposals;h,w=frame.shape[:2]
+        refinement_ms=0
+        if self.persist and config.ENABLE_PERSON_REFINEMENT and self.video.camera_online:
+            refine_started=time.perf_counter()
+            detections=person_refiner.refine(frame,detections)
+            refinement_ms=round((time.perf_counter()-refine_started)*1000,1)
         self.inference_ms = (time.perf_counter() - started) * 1000
 
         if generation != self.video.generation:
@@ -242,6 +253,8 @@ class SurveillancePipeline:
                 "width": w,
                 "height": h,
                 "tracks": [t.to_dict() for t in tracks],
+                "person_map":{'points':[[round((t.box[0]+t.box[2])/2,1),round(t.box[1]+.12*(t.box[3]-t.box[1]),1),t.track_id] for t in tracks if t.label=='person'],
+                    'count':sum(t.label=='person' for t in tracks),'frame_id':frame_id,'coordinates':'image pixels; estimated position from detected person box, not a head detector'},
                 "zones": self.geofence.get_zones_dict(),
                 "confirmed_zones": list(self.geofence.confirmed_zones),
                 "camera_id": camera_id,
@@ -250,6 +263,7 @@ class SurveillancePipeline:
                 "source_type": self.video.source_type,
                 "stage_times": dict(self.stage_times),
                 "counts": counts,
+                "person_detection":{'method':'full_frame_plus_enlarged_tiles' if self.persist and config.ENABLE_PERSON_REFINEMENT and person_refiner.error is None else 'full_frame','refinement_ms':refinement_ms,'error':person_refiner.error,'phone_rotation':self.video.phone_rotation},
                 "head_map": self.head_map if timestamp - self.last_head_at < 1.5 else None,
                 "crowd": {
                     "zones": self.crowd.zone_metrics,

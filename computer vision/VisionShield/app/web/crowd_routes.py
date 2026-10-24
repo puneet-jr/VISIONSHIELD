@@ -57,6 +57,7 @@ def stream_overview(request: Request):
                 "counts": snapshot.get("counts", {}) if fresh else {},
                 "tracks": snapshot.get("tracks", []) if fresh else [],
                 "head_map": snapshot.get("head_map") if fresh else None,
+                "person_map":snapshot.get('person_map') if fresh else None,
                 "zones": zones,
                 "crowd": snapshot.get("crowd", {"zones": []}) if fresh else {"zones": []},
                 "inference_ms": engine.inference_ms,
