@@ -140,7 +140,7 @@ class SurveillancePipeline:
         refinement_ms=0
         if self.persist and config.ENABLE_PERSON_REFINEMENT and self.video.camera_online:
             refine_started=time.perf_counter()
-            detections=person_refiner.refine(frame,detections)
+            detections=person_refiner.refine(frame,detections,timestamp,id(self))
             refinement_ms=round((time.perf_counter()-refine_started)*1000,1)
         self.inference_ms = (time.perf_counter() - started) * 1000
 
